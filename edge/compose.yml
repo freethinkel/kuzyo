@@ -1,0 +1,27 @@
+# Runs on the host next to Home Assistant, with host networking: every
+# service is reachable on a localhost port here.
+services:
+  # *.home.freethinkel.dev on the LAN, with real certificates via DNS-01.
+  caddy:
+    # Host Docker has no bridge network (see site.yml), so builds use the host's.
+    build:
+      context: .
+      network: host
+    container_name: caddy
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+    restart: unless-stopped
+
+  # Publishes the hostnames in cloudflared.yml to the internet.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    network_mode: host
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - ./credentials.json:/etc/cloudflared/credentials.json:ro
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+---
+# Home server only. Work machines live in ../ansible.
+all:
+  hosts:
+    kuzyo:
+      # Wi-Fi, MAC 28:d0:ea:c5:73:0d. On cable it is .223 (38:f3:ab:92:40:b3).
+      ansible_host: 192.168.1.243

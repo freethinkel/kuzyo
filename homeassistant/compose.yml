@@ -1,0 +1,15 @@
+# Runs on the host, not in an Incus guest: the host sits on Wi-Fi, and only
+# host networking lets HA see mDNS and SSDP on the home LAN.
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    network_mode: host
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      # Bluetooth goes through BlueZ on the host.
+      - /run/dbus:/run/dbus:ro
+    # Lets HA reset a stuck Bluetooth adapter on its own.
+    cap_add: [NET_ADMIN, NET_RAW]
+    restart: unless-stopped

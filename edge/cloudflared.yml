@@ -1,0 +1,8 @@
+# Public hostnames. Each needs a proxied CNAME to 24b355fe-d5c6-4c5e-9a72-2c0aceeb9632.cfargotunnel.com.
+tunnel: 24b355fe-d5c6-4c5e-9a72-2c0aceeb9632
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: photos.freethinkel.dev
+    service: http://localhost:2283
+  - service: http_status:404

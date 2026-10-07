@@ -1,0 +1,20 @@
+{
+	acme_dns cloudflare {env.CF_API_TOKEN}
+}
+
+# One wildcard certificate, so service names stay out of CT logs.
+*.home.freethinkel.dev {
+	@ha host ha.home.freethinkel.dev
+	handle @ha {
+		reverse_proxy localhost:8123
+	}
+
+	@photos host photos.home.freethinkel.dev
+	handle @photos {
+		reverse_proxy localhost:2283
+	}
+
+	handle {
+		respond 404
+	}
+}

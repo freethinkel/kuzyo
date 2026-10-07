@@ -1,0 +1,447 @@
+---
+# Debian 13 host on a ThinkPad T14 Gen 1. The host stays bare: services run
+# in Incus guests, so a host upgrade has little to break.
+- name: Host
+  hosts: kuzyo
+  remote_user: root
+  gather_facts: true
+  vars:
+    lazyincus_version: 0.13.1
+    # Secrets from .env (template: .env.sample), never from git.
+    cloudflare_api_token: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_API_TOKEN', file='.env', type='properties') }}"
+    cloudflare_account_id: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_ACCOUNT_ID', file='.env', type='properties') }}"
+    cloudflare_tunnel_secret: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_TUNNEL_SECRET', file='.env', type='properties') }}"
+    immich_db_password: "{{ lookup('ansible.builtin.ini', 'IMMICH_DB_PASSWORD', file='.env', type='properties') }}"
+    samba_password: "{{ lookup('ansible.builtin.ini', 'SAMBA_PASSWORD', file='.env', type='properties') }}"
+    # Compose stacks in apps/, run in the apps container. The port is
+    # published on the host, so LAN and Tailscale reach it.
+    stacks:
+      - { name: immich, port: 2283 }
+
+  tasks:
+    - name: Upgrade packages
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: true
+        cache_valid_time: 3600
+      tags: upgrade
+
+    # Remote access from anywhere without port forwarding. Logging in is a
+    # one-off by hand: tailscale up --hostname=kuzyo
+    - name: Add Tailscale repository
+      ansible.builtin.get_url:
+        url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_distribution_release }}.noarmor.gpg"
+        dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Tailscale apt source
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/tailscale.list
+        content: |
+          deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian {{ ansible_distribution_release }} main
+        mode: "0644"
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        update_cache: true
+
+    - name: Drop-in directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [/etc/systemd/logind.conf.d, /etc/systemd/system.conf.d, /etc/default/grub.d]
+
+    # networkd drops a link's routes on carrier loss, so pulling the cable falls
+    # back to Wi-Fi by itself. ClientIdentifier=mac keeps the router's
+    # MAC-based leases. The Wi-Fi password lives in
+    # /etc/wpa_supplicant/wpa_supplicant-wlp0s20f3.conf, set by hand.
+    - name: Network on cable, Wi-Fi as fallback
+      ansible.builtin.copy:
+        dest: "/etc/systemd/network/{{ item.file }}"
+        content: |
+          [Match]
+          Name={{ item.name }}
+
+          [Network]
+          DHCP=yes
+          IgnoreCarrierLoss={{ item.carrier_loss }}
+
+          [DHCPv4]
+          ClientIdentifier=mac
+          RouteMetric={{ item.metric }}
+        mode: "0644"
+      loop:
+        - { file: 10-eth.network, name: enp0s31f6, metric: 100, carrier_loss: "no" }
+        - { file: 20-wifi.network, name: wlp0s20f3, metric: 600, carrier_loss: 3s }
+      notify: Reload networkd
+
+    # iwlwifi power saving adds latency spikes and drops on an always-on box.
+    - name: Keep Wi-Fi out of power save
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/iwlwifi-powersave.conf
+        content: |
+          options iwlmvm power_scheme=1
+        mode: "0644"
+
+
+    # The server lives on a shelf with the lid closed.
+    - name: Ignore the lid switch
+      ansible.builtin.copy:
+        dest: /etc/systemd/logind.conf.d/lid.conf
+        content: |
+          [Login]
+          HandleLidSwitch=ignore
+          HandleLidSwitchExternalPower=ignore
+          HandleLidSwitchDocked=ignore
+        mode: "0644"
+      notify: Restart logind
+
+    # The iTCO hardware watchdog reboots the box if the kernel hangs while
+    # nobody is around to press the power button.
+    - name: Arm the hardware watchdog
+      ansible.builtin.copy:
+        dest: /etc/systemd/system.conf.d/watchdog.conf
+        content: |
+          [Manager]
+          RuntimeWatchdogSec=30s
+          RebootWatchdogSec=2min
+        mode: "0644"
+      notify: Reload systemd
+
+    # The console login prompt would otherwise stay lit forever. Applies after
+    # a reboot. Assumes GRUB, which is what preseed.cfg installs.
+    - name: Blank the console after a minute
+      ansible.builtin.copy:
+        dest: /etc/default/grub.d/consoleblank.cfg
+        content: |
+          GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT consoleblank=60"
+        mode: "0644"
+      notify: Update grub
+
+    # Always on AC, and sitting at 100% wears the cell out. ThinkPad firmware
+    # honours the threshold itself, so it holds even while the OS is down.
+    - name: Cap battery charge at 80%
+      ansible.builtin.copy:
+        dest: /etc/tmpfiles.d/battery.conf
+        content: |
+          w /sys/class/power_supply/BAT0/charge_control_end_threshold - - - - 80
+        mode: "0644"
+      notify: Apply tmpfiles
+
+    # qemu and OVMF are for VMs; containers need only incus itself.
+    - name: Install Incus
+      ansible.builtin.apt:
+        name: [incus, qemu-system-x86, ovmf]
+
+    # Guests live on the btrfs /srv, so snapshots are instant and a guest
+    # filling the disk cannot fill the host root.
+    - name: Btrfs subvolume for the Incus pool
+      ansible.builtin.command: btrfs subvolume create /srv/incus
+      args:
+        creates: /srv/incus
+
+    # NAT bridge: the host is on Wi-Fi, and Wi-Fi cannot join a bridge.
+    - name: Initialise Incus
+      ansible.builtin.command: incus admin init --preseed
+      args:
+        stdin: |
+          networks:
+            - name: incusbr0
+              type: bridge
+              config:
+                ipv4.address: auto
+                ipv6.address: none
+          storage_pools:
+            - name: default
+              driver: btrfs
+              config:
+                source: /srv/incus
+          profiles:
+            - name: default
+              devices:
+                root: {type: disk, path: /, pool: default}
+                eth0: {type: nic, name: eth0, network: incusbr0}
+        creates: /var/lib/incus/storage-pools/default
+
+    # Edge: Caddy for *.home.freethinkel.dev, cloudflared for public names.
+    - name: Edge directory
+      ansible.builtin.file:
+        path: /srv/edge
+        state: directory
+        mode: "0755"
+
+    - name: Edge files
+      ansible.builtin.copy:
+        src: "edge/{{ item }}"
+        dest: "/srv/edge/{{ item }}"
+        mode: "0644"
+      loop: [Dockerfile, compose.yml, Caddyfile, cloudflared.yml]
+
+    - name: Cloudflare API token for Caddy
+      ansible.builtin.copy:
+        dest: /srv/edge/.env
+        content: |
+          CF_API_TOKEN={{ cloudflare_api_token }}
+        mode: "0600"
+
+    # cloudflared runs as uid 65532 inside its image.
+    - name: Tunnel credentials
+      ansible.builtin.copy:
+        content: "{{ {'AccountTag': cloudflare_account_id, 'TunnelSecret': cloudflare_tunnel_secret,
+          'TunnelID': (lookup('file', 'edge/cloudflared.yml') | from_yaml).tunnel} | to_json }}"
+        dest: /srv/edge/credentials.json
+        owner: "65532"
+        mode: "0400"
+
+    - name: Start edge
+      ansible.builtin.command: docker compose up -d --build
+      args:
+        chdir: /srv/edge
+      register: edge_up
+      changed_when: "'Started' in edge_up.stderr or 'Recreated' in edge_up.stderr"
+
+    # TUI for Incus, lazydocker-style. Run as root on the host: lazyincus
+    - name: Download lazyincus {{ lazyincus_version }}
+      ansible.builtin.get_url:
+        url: "https://github.com/tallica/lazyincus/releases/download/v{{ lazyincus_version }}/lazyincus_{{ lazyincus_version }}_linux_amd64.tar.gz"
+        checksum: "sha256:https://github.com/tallica/lazyincus/releases/download/v{{ lazyincus_version }}/checksums.txt"
+        dest: "/var/cache/lazyincus_{{ lazyincus_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Install lazyincus
+      ansible.builtin.unarchive:
+        src: "/var/cache/lazyincus_{{ lazyincus_version }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        include: [lazyincus]
+        owner: root
+        group: root
+
+    # App data sits outside the container, so apps can be rebuilt from
+    # scratch without touching photos and databases.
+    - name: Btrfs subvolume for app data
+      ansible.builtin.command: btrfs subvolume create /srv/data
+      args:
+        creates: /srv/data
+
+    # Nesting and the syscall intercepts are what Docker needs inside an
+    # unprivileged container.
+    - name: Launch containers
+      ansible.builtin.command: >-
+        incus launch images:debian/13 {{ item }}
+        -c security.nesting=true
+        -c security.syscalls.intercept.mknod=true
+        -c security.syscalls.intercept.setxattr=true
+      args:
+        creates: "/var/lib/incus/storage-pools/default/containers/{{ item }}"
+      loop: [apps, dev]
+
+    - name: Mount app data into apps
+      ansible.builtin.command: incus config device add apps data disk source=/srv/data path=/data shift=true
+      register: data_device
+      changed_when: data_device.rc == 0
+      failed_when: data_device.rc != 0 and 'already exists' not in data_device.stderr
+
+    - name: Start guests with the host
+      ansible.builtin.command: "incus config set {{ item }} boot.autostart=true"
+      loop: [apps, dev]
+      changed_when: false
+
+    # Compose stacks from apps/<name>/ land in /srv/stacks/<name> on the host
+    # and show up in the apps container as /stacks/<name>.
+    - name: Stacks directory
+      ansible.builtin.file:
+        path: /srv/stacks
+        state: directory
+        mode: "0755"
+
+    - name: Mount stacks and the GPU into apps
+      ansible.builtin.command: "incus config device add apps {{ item }}"
+      loop:
+        - stacks disk source=/srv/stacks path=/stacks shift=true
+        - gpu gpu
+      register: apps_device
+      changed_when: apps_device.rc == 0
+      failed_when: apps_device.rc != 0 and 'already exists' not in apps_device.stderr
+
+    - name: Publish stack ports on the host
+      ansible.builtin.command: >-
+        incus config device add apps port-{{ item.port }} proxy
+        listen=tcp:0.0.0.0:{{ item.port }} connect=tcp:127.0.0.1:{{ item.port }}
+      loop: "{{ stacks }}"
+      register: port_device
+      changed_when: port_device.rc == 0
+      failed_when: port_device.rc != 0 and 'already exists' not in port_device.stderr
+
+    - name: Install Docker in apps
+      ansible.builtin.command: >-
+        incus exec apps -- sh -c 'until getent hosts deb.debian.org >/dev/null; do sleep 1; done;
+        apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compose'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/apps/rootfs/usr/bin/docker
+
+    # ../ansible reaches dev over SSH, jumping through this host.
+    - name: SSH server in dev
+      ansible.builtin.command: >-
+        incus exec dev -- sh -c 'until getent hosts deb.debian.org >/dev/null; do sleep 1; done;
+        apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q openssh-server python3 sudo &&
+        install -d -m 700 /root/.ssh'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/dev/rootfs/usr/sbin/sshd
+
+    - name: Authorise the root key in dev
+      ansible.builtin.command: incus file push /root/.ssh/authorized_keys dev/root/.ssh/authorized_keys --mode 0600
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/dev/rootfs/root/.ssh/authorized_keys
+
+    # File share on the USB SSD (exFAT, label files, so a Mac can read it
+    # too), served by Samba on the host. exFAT has no owners, so the mount
+    # hands everything to freethinkel; nofail keeps boot going if it is
+    # unplugged. exFAT has no xattrs either, so Finder keeps its metadata in
+    # ._ files next to the originals.
+    - name: Samba user
+      ansible.builtin.user:
+        name: freethinkel
+        uid: 1000
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Mount the files disk
+      ansible.posix.mount:
+        path: /srv/files
+        src: LABEL=files
+        fstype: exfat
+        opts: nofail,x-systemd.device-timeout=10s,uid=1000,gid=1000,fmask=0022,dmask=0022
+        state: mounted
+
+    - name: Install Samba
+      ansible.builtin.apt:
+        name: samba
+
+    # Password in auth only, never in a share. No internet exposure: the
+    # router forwards nothing, and Tailscale is a private network.
+    - name: Samba config
+      ansible.builtin.copy:
+        dest: /etc/samba/smb.conf
+        content: |
+          [global]
+             server role = standalone server
+             server min protocol = SMB3
+             map to guest = never
+             disable netbios = yes
+             smb ports = 445
+
+          [files]
+             path = /srv/files
+             read only = no
+             valid users = freethinkel
+        mode: "0644"
+      notify: Reload Samba
+
+    - name: Samba password
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        printf '%s\n%s\n' "$PW" "$PW" | smbpasswd -s -a freethinkel
+      args:
+        executable: /bin/bash
+      environment:
+        PW: "{{ samba_password }}"
+      changed_when: false
+
+    - name: Docker config directory
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        mode: "0755"
+
+    - name: Docker daemon config
+      ansible.builtin.copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {"iptables": false, "ip6tables": false, "bridge": "none"}
+        mode: "0644"
+
+    # avahi answers kuzyo.local on the LAN.
+    - name: Install Docker, BlueZ and avahi
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose, bluez, avahi-daemon]
+
+    - name: Btrfs subvolume for Home Assistant
+      ansible.builtin.command: btrfs subvolume create /srv/homeassistant
+      args:
+        creates: /srv/homeassistant
+
+    - name: Home Assistant compose file
+      ansible.builtin.copy:
+        src: homeassistant/compose.yml
+        dest: /srv/homeassistant/compose.yml
+        mode: "0644"
+
+    - name: Start Home Assistant
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: /srv/homeassistant
+      register: ha_up
+      changed_when: "'Started' in ha_up.stderr or 'Recreated' in ha_up.stderr"
+
+    - name: Stack files
+      ansible.builtin.copy:
+        src: "apps/{{ item.name }}/"
+        dest: "/srv/stacks/{{ item.name }}/"
+        mode: preserve
+      loop: "{{ stacks }}"
+
+    - name: Immich .env
+      ansible.builtin.copy:
+        dest: /srv/stacks/immich/.env
+        content: |
+          {{ lookup('file', 'apps/immich/env') }}
+          DB_PASSWORD={{ immich_db_password }}
+        mode: "0600"
+
+    # Postgres rewrites pages in place; btrfs copy-on-write only fragments it.
+    # +C must be set while the directory is still empty.
+    # No mode: the Postgres container owns its directory and needs 0700.
+    - name: Immich data directories
+      ansible.builtin.file:  # noqa: risky-file-permissions
+        path: "/srv/data/immich/{{ item }}"
+        state: directory
+      loop: [library, postgres]
+
+    - name: No copy-on-write for the Immich database
+      ansible.builtin.command: chattr +C /srv/data/immich/postgres
+      changed_when: false
+
+    - name: Start stacks
+      ansible.builtin.command: "incus exec apps -- docker compose --project-directory /stacks/{{ item.name }} up -d"
+      loop: "{{ stacks }}"
+      register: stack_up
+      changed_when: "'Started' in stack_up.stderr or 'Recreated' in stack_up.stderr"
+
+  handlers:
+    - name: Reload Samba
+      ansible.builtin.command: smbcontrol smbd reload-config
+      changed_when: true
+
+    - name: Reload networkd
+      ansible.builtin.command: networkctl reload
+      changed_when: true
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reexec: true
+
+    - name: Restart logind
+      ansible.builtin.systemd_service:
+        name: systemd-logind
+        state: restarted
+
+    - name: Update grub
+      ansible.builtin.command: update-grub
+      changed_when: true
+
+    - name: Apply tmpfiles
+      ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/battery.conf
+      changed_when: true
