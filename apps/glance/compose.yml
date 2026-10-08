@@ -1,0 +1,15 @@
+# Start page at home.freethinkel.dev, see config/glance.yml.
+name: glance
+
+services:
+  glance:
+    container_name: glance
+    image: glanceapp/glance
+    volumes:
+      - ./config:/app/config
+      # Container list of this apps container; HA and edge run on the host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /files:/files:ro
+    ports:
+      - 8080:8080
+    restart: unless-stopped

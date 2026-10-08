@@ -1,5 +1,7 @@
 # Non-secret part of .env; site.yml appends DB_PASSWORD on the server.
-UPLOAD_LOCATION=/data/immich/library
+# Originals, thumbnails and encoded video on the USB disk; the database
+# stays on the NVMe, since exFAT has no journal.
+UPLOAD_LOCATION=/files/immich
 DB_DATA_LOCATION=/data/immich/postgres
 IMMICH_VERSION=v3
 DB_USERNAME=postgres

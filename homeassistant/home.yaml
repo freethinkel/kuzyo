@@ -9,8 +9,12 @@ areas:
     name: "Bedroom"
   - id: "home_office"
     name: "Home office"
+  - id: "outdoor"
+    name: "Outdoor"
 
 entities:
+  - id: automation.ac_temperature
+    name: "AC temperature"
   - id: binary_sensor.bedroom_connectivity
     name: "Connectivity"
     area: bedroom
@@ -19,12 +23,8 @@ entities:
   - id: binary_sensor.home_office_connectivity
     name: "Connectivity"
     area: home_office
-  - id: binary_sensor.iphone_egor_camera_motion
-    name: "iPhone Egor Camera Motion"
   - id: binary_sensor.iphone_egor_focus
     name: "iPhone Egor Focus"
-  - id: binary_sensor.iphone_egor_kiosk_mode
-    name: "iPhone Egor Kiosk Mode"
   - id: binary_sensor.iphone_egor_kiosk_screensaver
     name: "iPhone Egor Kiosk Screensaver"
   - id: binary_sensor.living_room_connectivity
@@ -43,22 +43,40 @@ entities:
     name: "iPhone Egor"
   - id: event.backup_automatic_backup
     name: "Automatic backup"
+  - id: input_number.bedroom_ac_temperature
+    name: "Bedroom AC temperature"
+    area: bedroom
+  - id: input_number.home_office_ac_temperature
+    name: "Home office AC temperature"
+    area: home_office
+  - id: input_number.living_room_ac_temperature
+    name: "Living room AC temperature"
+    area: living_room
   - id: notify.iphone_egor
     name: "iPhone Egor"
   - id: person.egor
     name: "Egor"
+  - id: select.bedroom_ac
+    name: "Bedroom AC"
+    area: bedroom
   - id: select.bedroom_active_program
     name: "Active program"
     area: bedroom
   - id: select.bedroom_selected_program
     name: "Selected program"
     area: bedroom
+  - id: select.home_office_ac
+    name: "Home office AC"
+    area: home_office
   - id: select.home_office_active_program
     name: "Active program"
     area: home_office
   - id: select.home_office_selected_program
     name: "Selected program"
     area: home_office
+  - id: select.living_room_ac
+    name: "Living room AC"
+    area: living_room
   - id: select.living_room_active_program
     name: "Active program"
     area: living_room
@@ -82,6 +100,12 @@ entities:
     name: "External IP"
   - id: sensor.debian_router_upload_speed
     name: "Upload speed"
+  - id: sensor.electricity_maps_co2_intensity
+    name: "CO2 intensity"
+  - id: sensor.electricity_maps_grid_fossil_fuel_percentage
+    name: "Grid fossil fuel percentage"
+  - id: sensor.electricity_meter
+    name: "Electricity meter"
   - id: sensor.home_office_program_progress
     name: "Program progress"
     area: home_office
@@ -89,20 +113,12 @@ entities:
     name: "iPhone Egor Activity"
   - id: sensor.iphone_egor_app_version
     name: "iPhone Egor App Version"
-  - id: sensor.iphone_egor_audio_output
-    name: "iPhone Egor Audio Output"
   - id: sensor.iphone_egor_average_active_pace
     name: "iPhone Egor Average Active Pace"
   - id: sensor.iphone_egor_battery_level
     name: "iPhone Egor Battery Level"
   - id: sensor.iphone_egor_battery_state
     name: "iPhone Egor Battery State"
-  - id: sensor.iphone_egor_bssid
-    name: "iPhone Egor BSSID"
-  - id: sensor.iphone_egor_camera_stream
-    name: "iPhone Egor Camera Stream"
-  - id: sensor.iphone_egor_connection_type
-    name: "iPhone Egor Connection Type"
   - id: sensor.iphone_egor_current_cadence
     name: "iPhone Egor Current Cadence"
   - id: sensor.iphone_egor_current_pace
@@ -113,28 +129,12 @@ entities:
     name: "iPhone Egor Floors Ascended"
   - id: sensor.iphone_egor_floors_descended
     name: "iPhone Egor Floors Descended"
-  - id: sensor.iphone_egor_geocoded_location
-    name: "iPhone Egor Geocoded Location"
-  - id: sensor.iphone_egor_kiosk_brightness
-    name: "iPhone Egor Kiosk Brightness"
-  - id: sensor.iphone_egor_kiosk_volume
-    name: "iPhone Egor Kiosk Volume"
-  - id: sensor.iphone_egor_last_update_trigger
-    name: "iPhone Egor Last Update Trigger"
   - id: sensor.iphone_egor_location_permission
     name: "iPhone Egor Location permission"
   - id: sensor.iphone_egor_pressure
     name: "iPhone Egor Pressure"
-  - id: sensor.iphone_egor_sim_1
-    name: "iPhone Egor SIM 1"
-  - id: sensor.iphone_egor_sim_2
-    name: "iPhone Egor SIM 2"
-  - id: sensor.iphone_egor_ssid
-    name: "iPhone Egor SSID"
   - id: sensor.iphone_egor_steps
     name: "iPhone Egor Steps"
-  - id: sensor.iphone_egor_storage
-    name: "iPhone Egor Storage"
   - id: sensor.living_room_program_progress
     name: "Program progress"
     area: living_room
@@ -150,12 +150,21 @@ entities:
     name: "Next rising"
   - id: sensor.sun_next_setting
     name: "Next setting"
+  - id: switch.bedroom_ac
+    name: "Bedroom AC"
+    area: bedroom
   - id: switch.bedroom_power
     name: "Power"
     area: bedroom
+  - id: switch.home_office_ac
+    name: "Home office AC"
+    area: home_office
   - id: switch.home_office_power
     name: "Power"
     area: home_office
+  - id: switch.living_room_ac
+    name: "Living room AC"
+    area: living_room
   - id: switch.living_room_power
     name: "Power"
     area: living_room

@@ -38,6 +38,8 @@ Everything goes through the `edge` stack on the host (`edge/`):
   obtained over DNS-01. The `*.home` record points at the LAN address, so
   these names work at home: `ha.home.freethinkel.dev`,
   `photos.home.freethinkel.dev`. Routes live in `edge/Caddyfile`.
+  `home.freethinkel.dev`, also LAN only, is the Glance start page
+  (`apps/glance/`).
 - **cloudflared** publishes `photos.freethinkel.dev` to the internet through
   Cloudflare Tunnel `kuzyo`. Routes live in `edge/cloudflared.yml`; every
   public name also needs a proxied CNAME to `<tunnel id>.cfargotunnel.com`.

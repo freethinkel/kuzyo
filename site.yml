@@ -7,16 +7,20 @@
   gather_facts: true
   vars:
     lazyincus_version: 0.13.1
+    lazydocker_version: 0.25.2
     # Secrets from .env (template: .env.sample), never from git.
     cloudflare_api_token: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_API_TOKEN', file='.env', type='properties') }}"
     cloudflare_account_id: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_ACCOUNT_ID', file='.env', type='properties') }}"
     cloudflare_tunnel_secret: "{{ lookup('ansible.builtin.ini', 'CLOUDFLARE_TUNNEL_SECRET', file='.env', type='properties') }}"
     immich_db_password: "{{ lookup('ansible.builtin.ini', 'IMMICH_DB_PASSWORD', file='.env', type='properties') }}"
     samba_password: "{{ lookup('ansible.builtin.ini', 'SAMBA_PASSWORD', file='.env', type='properties') }}"
+    eac_email: "{{ lookup('ansible.builtin.ini', 'EAC_EMAIL', file='.env', type='properties') }}"
+    eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
     # Compose stacks in apps/, run in the apps container. The port is
     # published on the host, so LAN and Tailscale reach it.
     stacks:
       - { name: immich, port: 2283 }
+      - { name: glance, port: 8080 }
 
   tasks:
     - name: Upgrade packages
@@ -178,6 +182,7 @@
         dest: "/srv/edge/{{ item }}"
         mode: "0644"
       loop: [Dockerfile, compose.yml, Caddyfile, cloudflared.yml]
+      notify: Reload edge
 
     - name: Cloudflare API token for Caddy
       ansible.builtin.copy:
@@ -218,6 +223,32 @@
         include: [lazyincus]
         owner: root
         group: root
+
+    # TUI for Docker: lazydocker for HA and edge on the host,
+    # lazydocker-apps for the stacks in the apps container.
+    - name: Download lazydocker {{ lazydocker_version }}
+      ansible.builtin.get_url:
+        url: "https://github.com/jesseduffield/lazydocker/releases/download/v{{ lazydocker_version }}/lazydocker_{{ lazydocker_version }}_Linux_x86_64.tar.gz"
+        checksum: "sha256:https://github.com/jesseduffield/lazydocker/releases/download/v{{ lazydocker_version }}/checksums.txt"
+        dest: "/var/cache/lazydocker_{{ lazydocker_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Install lazydocker
+      ansible.builtin.unarchive:
+        src: "/var/cache/lazydocker_{{ lazydocker_version }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        include: [lazydocker]
+        owner: root
+        group: root
+
+    - name: lazydocker-apps
+      ansible.builtin.copy:
+        dest: /usr/local/bin/lazydocker-apps
+        content: |
+          #!/bin/sh
+          exec incus exec apps -- lazydocker "$@"
+        mode: "0755"
 
     # App data sits outside the container, so apps can be rebuilt from
     # scratch without touching photos and databases.
@@ -262,6 +293,7 @@
       loop:
         - stacks disk source=/srv/stacks path=/stacks shift=true
         - gpu gpu
+        - files disk source=/srv/files path=/files shift=true
       register: apps_device
       changed_when: apps_device.rc == 0
       failed_when: apps_device.rc != 0 and 'already exists' not in apps_device.stderr
@@ -299,8 +331,7 @@
     # File share on the USB SSD (exFAT, label files, so a Mac can read it
     # too), served by Samba on the host. exFAT has no owners, so the mount
     # hands everything to freethinkel; nofail keeps boot going if it is
-    # unplugged. exFAT has no xattrs either, so Finder keeps its metadata in
-    # ._ files next to the originals.
+    # unplugged.
     - name: Samba user
       ansible.builtin.user:
         name: freethinkel
@@ -313,7 +344,7 @@
         path: /srv/files
         src: LABEL=files
         fstype: exfat
-        opts: nofail,x-systemd.device-timeout=10s,uid=1000,gid=1000,fmask=0022,dmask=0022
+        opts: nofail,x-systemd.device-timeout=10s,uid=1000,gid=1000,fmask=0000,dmask=0000
         state: mounted
 
     - name: Install Samba
@@ -332,6 +363,12 @@
              map to guest = never
              disable netbios = yes
              smb ports = 445
+             # Apple SMB extensions; the iOS Files app lists nothing without
+             # them. exFAT has no xattrs, so streams go to a hidden .streams
+             # directory instead of streams_xattr.
+             vfs objects = fruit streams_depot
+             fruit:metadata = stream
+             fruit:model = MacSamba
 
           [files]
              path = /srv/files
@@ -379,12 +416,30 @@
         dest: /srv/homeassistant/compose.yml
         mode: "0644"
 
+    # The rest of secrets.yaml is managed in the HA UI.
+    - name: EAC portal login for the electricity meter sensor
+      ansible.builtin.lineinfile:
+        path: /srv/homeassistant/config/secrets.yaml
+        regexp: "^{{ item.key }}:"
+        line: "{{ item.key }}: {{ item.value | to_json }}"
+      loop: "{{ {'eac_email': eac_email, 'eac_password': eac_password} | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      no_log: true
+
     - name: Start Home Assistant
       ansible.builtin.command: docker compose up -d
       args:
         chdir: /srv/homeassistant
       register: ha_up
       changed_when: "'Started' in ha_up.stderr or 'Recreated' in ha_up.stderr"
+
+    - name: lazydocker in apps
+      ansible.builtin.shell: |
+        [ "$(md5sum < /usr/local/bin/lazydocker)" = "$(incus exec apps -- sh -c 'md5sum < /usr/local/bin/lazydocker' 2>/dev/null)" ] && exit
+        incus file push --mode 0755 /usr/local/bin/lazydocker apps/usr/local/bin/lazydocker && echo pushed
+      register: lazydocker_push
+      changed_when: "'pushed' in lazydocker_push.stdout"
 
     - name: Stack files
       ansible.builtin.copy:
@@ -404,11 +459,15 @@
     # Postgres rewrites pages in place; btrfs copy-on-write only fragments it.
     # +C must be set while the directory is still empty.
     # No mode: the Postgres container owns its directory and needs 0700.
-    - name: Immich data directories
+    - name: Immich database directory
       ansible.builtin.file:  # noqa: risky-file-permissions
-        path: "/srv/data/immich/{{ item }}"
+        path: /srv/data/immich/postgres
         state: directory
-      loop: [library, postgres]
+
+    - name: Immich storage on the files disk
+      ansible.builtin.file:  # noqa: risky-file-permissions
+        path: /srv/files/immich
+        state: directory
 
     - name: No copy-on-write for the Immich database
       ansible.builtin.command: chattr +C /srv/data/immich/postgres
@@ -421,6 +480,12 @@
       changed_when: "'Started' in stack_up.stderr or 'Recreated' in stack_up.stderr"
 
   handlers:
+    # A restart, not caddy reload: copy replaces the file, and a single-file
+    # bind mount keeps showing the old one.
+    - name: Reload edge
+      ansible.builtin.command: docker restart caddy cloudflared
+      changed_when: true
+
     - name: Reload Samba
       ansible.builtin.command: smbcontrol smbd reload-config
       changed_when: true

@@ -18,3 +18,8 @@
 		respond 404
 	}
 }
+
+# Start page, Glance in the apps container.
+home.freethinkel.dev {
+	reverse_proxy localhost:8080
+}

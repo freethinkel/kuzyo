@@ -1,0 +1,10 @@
+{
+  "domain": "eac",
+  "name": "EAC smart meter",
+  "version": "1.0.0",
+  "documentation": "https://github.com/freethinkel/kuzyo",
+  "dependencies": ["recorder"],
+  "codeowners": [],
+  "iot_class": "cloud_polling",
+  "requirements": []
+}

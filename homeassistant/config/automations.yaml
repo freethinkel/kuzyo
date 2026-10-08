@@ -1,1 +1,21 @@
-[]
+- id: ac_temperature
+  alias: AC temperature
+  description: Sends the AC temperature helpers to the air conditioners.
+  mode: queued
+  triggers:
+    - trigger: state
+      entity_id:
+        - input_number.living_room_ac_temperature
+        - input_number.bedroom_ac_temperature
+        - input_number.home_office_ac_temperature
+      to: ~
+  conditions:
+    - "{{ trigger.from_state is not none and trigger.to_state.state | is_number }}"
+  variables:
+    power: "{{ trigger.entity_id | replace('input_number.', 'switch.') | replace('_ac_temperature', '_power') }}"
+  actions:
+    - action: home_connect.set_program_and_options
+      data:
+        device_id: "{{ device_id(power) }}"
+        affects_to: "{{ 'active_program' if is_state(power, 'on') else 'selected_program' }}"
+        heating_ventilation_air_conditioning_air_conditioner_option_setpoint_temperature: "{{ trigger.to_state.state | float }}"

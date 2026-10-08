@@ -9,3 +9,169 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
+
+# Home Connect gives these Pitsos air conditioners no climate entity: their
+# programs are select-only. Per room there is an on/off switch, a mode and a
+# temperature; the raw power switch and program selects stay hidden. The
+# temperature goes to the device by the AC temperature automation.
+input_number:
+  living_room_ac_temperature:
+    name: "Living room AC temperature"
+    min: 16
+    max: 30
+    step: 1
+    unit_of_measurement: °C
+    icon: mdi:thermometer
+  bedroom_ac_temperature:
+    name: "Bedroom AC temperature"
+    min: 16
+    max: 30
+    step: 1
+    unit_of_measurement: °C
+    icon: mdi:thermometer
+  home_office_ac_temperature:
+    name: "Home office AC temperature"
+    min: 16
+    max: 30
+    step: 1
+    unit_of_measurement: °C
+    icon: mdi:thermometer
+
+template:
+  - switch:
+      - unique_id: living_room_ac
+        name: "Living room AC"
+        state: "{{ is_state('switch.living_room_power', 'on') }}"
+        icon: >
+          {% if not is_state('switch.living_room_power', 'on') %}mdi:air-conditioner
+          {% elif states('select.living_room_selected_program').endswith('heat') %}mdi:sun-thermometer
+          {% else %}mdi:snowflake-thermometer{% endif %}
+        turn_on:
+          - action: switch.turn_on
+            target: {entity_id: switch.living_room_power}
+        turn_off:
+          - action: switch.turn_off
+            target: {entity_id: switch.living_room_power}
+      - unique_id: bedroom_ac
+        name: "Bedroom AC"
+        state: "{{ is_state('switch.bedroom_power', 'on') }}"
+        icon: >
+          {% if not is_state('switch.bedroom_power', 'on') %}mdi:air-conditioner
+          {% elif states('select.bedroom_selected_program').endswith('heat') %}mdi:sun-thermometer
+          {% else %}mdi:snowflake-thermometer{% endif %}
+        turn_on:
+          - action: switch.turn_on
+            target: {entity_id: switch.bedroom_power}
+        turn_off:
+          - action: switch.turn_off
+            target: {entity_id: switch.bedroom_power}
+      - unique_id: home_office_ac
+        name: "Home office AC"
+        state: "{{ is_state('switch.home_office_power', 'on') }}"
+        icon: >
+          {% if not is_state('switch.home_office_power', 'on') %}mdi:air-conditioner
+          {% elif states('select.home_office_selected_program').endswith('heat') %}mdi:sun-thermometer
+          {% else %}mdi:snowflake-thermometer{% endif %}
+        turn_on:
+          - action: switch.turn_on
+            target: {entity_id: switch.home_office_power}
+        turn_off:
+          - action: switch.turn_off
+            target: {entity_id: switch.home_office_power}
+  - select:
+      - unique_id: living_room_ac_mode
+        name: "Living room AC mode"
+        icon: mdi:air-conditioner
+        options: "{{ ['Off', 'Cool', 'Heat', 'Auto', 'Dry', 'Fan'] }}"
+        state: >
+          {% if is_state('switch.living_room_power', 'on') %}
+            {{ states('select.living_room_selected_program').split('_')[-1] | capitalize }}
+          {% else %}Off{% endif %}
+        select_option:
+          - if: "{{ option == 'Off' }}"
+            then:
+              - action: switch.turn_off
+                target: {entity_id: switch.living_room_power}
+            else:
+              - action: switch.turn_on
+                target: {entity_id: switch.living_room_power}
+              - delay: 2
+              - action: home_connect.set_program_and_options
+                data:
+                  device_id: "{{ device_id('switch.living_room_power') }}"
+                  affects_to: active_program
+                  program: "heating_ventilation_air_conditioning_air_conditioner_program_{{ option | lower }}"
+                  heating_ventilation_air_conditioning_air_conditioner_option_setpoint_temperature: "{{ states('input_number.living_room_ac_temperature') | float(22) }}"
+      - unique_id: bedroom_ac_mode
+        name: "Bedroom AC mode"
+        icon: mdi:air-conditioner
+        options: "{{ ['Off', 'Cool', 'Heat', 'Auto', 'Dry', 'Fan'] }}"
+        state: >
+          {% if is_state('switch.bedroom_power', 'on') %}
+            {{ states('select.bedroom_selected_program').split('_')[-1] | capitalize }}
+          {% else %}Off{% endif %}
+        select_option:
+          - if: "{{ option == 'Off' }}"
+            then:
+              - action: switch.turn_off
+                target: {entity_id: switch.bedroom_power}
+            else:
+              - action: switch.turn_on
+                target: {entity_id: switch.bedroom_power}
+              - delay: 2
+              - action: home_connect.set_program_and_options
+                data:
+                  device_id: "{{ device_id('switch.bedroom_power') }}"
+                  affects_to: active_program
+                  program: "heating_ventilation_air_conditioning_air_conditioner_program_{{ option | lower }}"
+                  heating_ventilation_air_conditioning_air_conditioner_option_setpoint_temperature: "{{ states('input_number.bedroom_ac_temperature') | float(22) }}"
+      - unique_id: home_office_ac_mode
+        name: "Home office AC mode"
+        icon: mdi:air-conditioner
+        options: "{{ ['Off', 'Cool', 'Heat', 'Auto', 'Dry', 'Fan'] }}"
+        state: >
+          {% if is_state('switch.home_office_power', 'on') %}
+            {{ states('select.home_office_selected_program').split('_')[-1] | capitalize }}
+          {% else %}Off{% endif %}
+        select_option:
+          - if: "{{ option == 'Off' }}"
+            then:
+              - action: switch.turn_off
+                target: {entity_id: switch.home_office_power}
+            else:
+              - action: switch.turn_on
+                target: {entity_id: switch.home_office_power}
+              - delay: 2
+              - action: home_connect.set_program_and_options
+                data:
+                  device_id: "{{ device_id('switch.home_office_power') }}"
+                  affects_to: active_program
+                  program: "heating_ventilation_air_conditioning_air_conditioner_program_{{ option | lower }}"
+                  heating_ventilation_air_conditioning_air_conditioner_option_setpoint_temperature: "{{ states('input_number.home_office_ac_temperature') | float(22) }}"
+
+# Daily reading of the EAC smart meter from the DSO portal, see eac.py. It
+# lands a day late, so the Energy dashboard books it on the day it arrives.
+command_line:
+  - sensor:
+      name: Electricity meter
+      unique_id: eac_meter
+      command: python3 /config/eac.py
+      command_timeout: 60
+      scan_interval: 10800
+      value_template: "{{ value_json.reading }}"
+      json_attributes: [day, dt, meter]
+      unit_of_measurement: kWh
+      device_class: energy
+      state_class: total_increasing
+
+# Half-hour consumption and its cost as hourly statistics for the Energy
+# dashboard, see custom_components/eac.
+eac:
+  email: !secret eac_email
+  password: !secret eac_password
+  # All-in €/kWh, tariff 01 from 1 May 2026: energy 17.89 + network 3.93 +
+  # fuel adjustment 8.0151 (Sep/Oct 2026, low voltage) + RES fund 0.5 + PSO
+  # 0.051 cent, plus 5% VAT. The fuel adjustment changes every two months:
+  # eac.com.cy → Supply → Tariffs → Fuel Price Adjustment. Fixed charges
+  # (supply €8, meter data €0.94 per two months) are left out.
+  price: 0.319

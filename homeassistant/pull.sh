@@ -7,10 +7,10 @@ HOST=root@192.168.1.243
 DIR=/srv/homeassistant/config
 
 # YAML that HA and its UI editors write: automations, scripts, scenes,
-# blueprints. secrets.yaml stays on the server.
+# blueprints, plus scripts like eac.py. secrets.yaml stays on the server.
 rsync -a --delete --prune-empty-dirs --exclude=secrets.yaml \
-  --exclude='.*/' --exclude=deps/ --exclude=tts/ \
-  --include='*/' --include='*.yaml' --exclude='*' \
+  --exclude='.*/' --exclude=deps/ --exclude=tts/ --exclude=__pycache__/ \
+  --include='*/' --include='*.yaml' --include='*.py' --include='custom_components/**' --exclude='*' \
   "$HOST:$DIR/" config/
 
 # Areas and entities live in .storage as JSON; render a readable summary.

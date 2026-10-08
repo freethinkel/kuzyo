@@ -1,0 +1,32 @@
+# Glance reloads this file on change.
+pages:
+  - name: kuzyo
+    columns:
+      - size: small
+        widgets:
+          - type: server-stats
+            servers:
+              - type: local
+                name: kuzyo
+          - type: weather
+            location: Larnaca, Cyprus
+            units: metric
+            hour-format: 24h
+
+      - size: full
+        widgets:
+          - type: monitor
+            title: Services
+            cache: 1m
+            sites:
+              - title: Home Assistant
+                url: https://ha.home.freethinkel.dev
+                icon: si:homeassistant
+              - title: Immich
+                url: https://photos.home.freethinkel.dev
+                icon: si:immich
+              - title: Immich (internet)
+                url: https://photos.freethinkel.dev
+                icon: si:cloudflare
+          - type: docker-containers
+            title: Containers in apps
