@@ -97,6 +97,14 @@ pages:
             servers:
               - type: local
                 name: kuzyo
+                # The apps container lives on the host's /srv partition, so
+                # its / reports that disk. /files is the USB SSD, mounted in
+                # compose.yml.
+                mountpoints:
+                  "/":
+                    name: /srv
+                  "/files":
+                    name: SSD
 
           - type: custom-api
             title: Cloudflare Tunnel

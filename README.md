@@ -52,9 +52,15 @@ them and says how to make each one. `site.yml` reads `.env` directly, nothing
 to source first.
 
 The USB SSD (exFAT, label `files`, readable on a Mac too) is mounted at
-`/srv/files` and shared by Samba on the host: `smb://kuzyo.local/ssd`, user
+`/srv/files`; only its `shared-files` folder is served by Samba on the host:
+`smb://kuzyo.local/Kenos`, user
 `freethinkel`, password `SAMBA_PASSWORD` in `.env`. Only the LAN and
 Tailscale reach port 445.
+
+Every night at 04:00 `kuzyo-backup` puts the Immich database and
+`/srv/homeassistant` into a restic repo at `/srv/files/backup`, password
+`RESTIC_PASSWORD` in `.env`. Photos are not backed up. To look inside:
+`restic -r /srv/files/backup -p /root/.restic-password snapshots`.
 
 Compose stacks for the `apps` container live in `apps/<name>/`. Add each one
 to `stacks` in `site.yml` with the port to publish on the host.

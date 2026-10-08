@@ -17,6 +17,7 @@
     eac_email: "{{ lookup('ansible.builtin.ini', 'EAC_EMAIL', file='.env', type='properties') }}"
     eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
     ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
+    restic_password: "{{ lookup('ansible.builtin.ini', 'RESTIC_PASSWORD', file='.env', type='properties') }}"
     # Compose stacks in apps/, run in the apps container. The port is
     # published on the host, so LAN and Tailscale reach it.
     stacks:
@@ -348,6 +349,12 @@
         opts: nofail,x-systemd.device-timeout=10s,uid=1000,gid=1000,fmask=0000,dmask=0000
         state: mounted
 
+    # Only this folder is shared, the rest of the disk stays local.
+    - name: Shared folder on the files disk
+      ansible.builtin.file:
+        path: /srv/files/shared-files
+        state: directory
+
     - name: Install Samba
       ansible.builtin.apt:
         name: samba
@@ -371,8 +378,8 @@
              fruit:metadata = stream
              fruit:model = MacSamba
 
-          [ssd]
-             path = /srv/files
+          [Kenos]
+             path = /srv/files/shared-files
              read only = no
              valid users = freethinkel
              # streams_depot moves stale stream dirs to the share root as
@@ -493,6 +500,75 @@
       loop: "{{ stacks }}"
       register: stack_up
       changed_when: "'Started' in stack_up.stderr or 'Recreated' in stack_up.stderr"
+
+    # Nightly restic backup of what this repo cannot rebuild: the Immich
+    # database and Home Assistant's state. Photos are not in it. The repo sits
+    # on the USB disk, so it outlives the NVMe, not the whole laptop.
+    - name: Install restic
+      ansible.builtin.apt:
+        name: restic
+
+    - name: Restic password
+      ansible.builtin.copy:
+        dest: /root/.restic-password
+        content: "{{ restic_password }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Backup script
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/kuzyo-backup
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          export RESTIC_REPOSITORY=/srv/files/backup RESTIC_PASSWORD_FILE=/root/.restic-password
+          incus exec apps -- docker exec immich_postgres pg_dumpall --clean --if-exists -U postgres |
+            restic backup -q --tag immich --stdin --stdin-filename immich.sql
+          # A read-only snapshot, so the recorder database is not caught mid-write.
+          trap 'btrfs -q subvolume delete /srv/homeassistant-backup' EXIT
+          btrfs -q subvolume snapshot -r /srv/homeassistant /srv/homeassistant-backup
+          restic backup -q --tag homeassistant /srv/homeassistant-backup
+          restic forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+
+    - name: Restic repository
+      ansible.builtin.command: restic init -r /srv/files/backup -p /root/.restic-password
+      args:
+        creates: /srv/files/backup/config
+
+    - name: Backup service and timer
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/kuzyo-backup.{{ item.key }}"
+        content: "{{ item.value }}"
+        mode: "0644"
+      loop: "{{ units | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      vars:
+        units:
+          service: |
+            [Unit]
+            Description=Back up the Immich database and Home Assistant
+            RequiresMountsFor=/srv/files
+
+            [Service]
+            Type=oneshot
+            Environment=HOME=/root
+            ExecStart=/usr/local/sbin/kuzyo-backup
+          timer: |
+            [Timer]
+            OnCalendar=04:00
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+
+    - name: Start the backup timer
+      ansible.builtin.systemd_service:
+        name: kuzyo-backup.timer
+        enabled: true
+        state: started
+        daemon_reload: true
 
   handlers:
     # A restart, not caddy reload: copy replaces the file, and a single-file
