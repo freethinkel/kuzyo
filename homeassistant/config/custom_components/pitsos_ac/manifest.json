@@ -1,0 +1,11 @@
+{
+  "domain": "pitsos_ac",
+  "name": "Pitsos air conditioners",
+  "version": "1.0.0",
+  "documentation": "https://github.com/freethinkel/kuzyo",
+  "config_flow": true,
+  "dependencies": ["home_connect"],
+  "codeowners": [],
+  "iot_class": "cloud_push",
+  "requirements": []
+}

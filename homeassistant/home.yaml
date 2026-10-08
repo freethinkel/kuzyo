@@ -13,8 +13,6 @@ areas:
     name: "Outdoor"
 
 entities:
-  - id: automation.ac_temperature
-    name: "AC temperature"
   - id: binary_sensor.bedroom_connectivity
     name: "Connectivity"
     area: bedroom
@@ -39,44 +37,35 @@ entities:
   - id: button.living_room_stop_program
     name: "Stop program"
     area: living_room
+  - id: climate.bedroom
+    name: "Bedroom"
+    area: bedroom
+  - id: climate.home_office
+    name: "Home office"
+    area: home_office
+  - id: climate.living_room
+    name: "Living room"
+    area: living_room
   - id: device_tracker.iphone_egor
     name: "iPhone Egor"
   - id: event.backup_automatic_backup
     name: "Automatic backup"
-  - id: input_number.bedroom_ac_temperature
-    name: "Bedroom AC temperature"
-    area: bedroom
-  - id: input_number.home_office_ac_temperature
-    name: "Home office AC temperature"
-    area: home_office
-  - id: input_number.living_room_ac_temperature
-    name: "Living room AC temperature"
-    area: living_room
   - id: notify.iphone_egor
     name: "iPhone Egor"
   - id: person.egor
     name: "Egor"
-  - id: select.bedroom_ac
-    name: "Bedroom AC"
-    area: bedroom
   - id: select.bedroom_active_program
     name: "Active program"
     area: bedroom
   - id: select.bedroom_selected_program
     name: "Selected program"
     area: bedroom
-  - id: select.home_office_ac
-    name: "Home office AC"
-    area: home_office
   - id: select.home_office_active_program
     name: "Active program"
     area: home_office
   - id: select.home_office_selected_program
     name: "Selected program"
     area: home_office
-  - id: select.living_room_ac
-    name: "Living room AC"
-    area: living_room
   - id: select.living_room_active_program
     name: "Active program"
     area: living_room
@@ -150,21 +139,12 @@ entities:
     name: "Next rising"
   - id: sensor.sun_next_setting
     name: "Next setting"
-  - id: switch.bedroom_ac
-    name: "Bedroom AC"
-    area: bedroom
   - id: switch.bedroom_power
     name: "Power"
     area: bedroom
-  - id: switch.home_office_ac
-    name: "Home office AC"
-    area: home_office
   - id: switch.home_office_power
     name: "Power"
     area: home_office
-  - id: switch.living_room_ac
-    name: "Living room AC"
-    area: living_room
   - id: switch.living_room_power
     name: "Power"
     area: living_room

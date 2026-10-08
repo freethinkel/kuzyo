@@ -16,6 +16,7 @@
     samba_password: "{{ lookup('ansible.builtin.ini', 'SAMBA_PASSWORD', file='.env', type='properties') }}"
     eac_email: "{{ lookup('ansible.builtin.ini', 'EAC_EMAIL', file='.env', type='properties') }}"
     eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
+    ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
     # Compose stacks in apps/, run in the apps container. The port is
     # published on the host, so LAN and Tailscale reach it.
     stacks:
@@ -370,10 +371,14 @@
              fruit:metadata = stream
              fruit:model = MacSamba
 
-          [files]
+          [ssd]
              path = /srv/files
              read only = no
              valid users = freethinkel
+             # streams_depot moves stale stream dirs to the share root as
+             # lost-<n>: exFAT inode numbers change between mounts.
+             veto files = /lost-*/
+             delete veto files = yes
         mode: "0644"
       notify: Reload Samba
 
@@ -454,6 +459,16 @@
         content: |
           {{ lookup('file', 'apps/immich/env') }}
           DB_PASSWORD={{ immich_db_password }}
+        mode: "0600"
+
+    - name: Glance .env
+      ansible.builtin.copy:
+        dest: /srv/stacks/glance/.env
+        content: |
+          HA_TOKEN={{ ha_token }}
+          CF_API_TOKEN={{ cloudflare_api_token }}
+          CF_ACCOUNT_ID={{ cloudflare_account_id }}
+          CF_TUNNEL_ID={{ (lookup('file', 'edge/cloudflared.yml') | from_yaml).tunnel }}
         mode: "0600"
 
     # Postgres rewrites pages in place; btrfs copy-on-write only fragments it.

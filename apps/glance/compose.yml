@@ -5,6 +5,10 @@ services:
   glance:
     container_name: glance
     image: glanceapp/glance
+    # HA_TOKEN and Cloudflare for the widgets, written by site.yml.
+    env_file: .env
+    labels:
+      glance.hide: "true"
     volumes:
       - ./config:/app/config
       # Container list of this apps container; HA and edge run on the host.

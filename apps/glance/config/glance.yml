@@ -1,13 +1,28 @@
-# Glance reloads this file on change.
+# Start page at home.freethinkel.dev. Glance reloads this file on change;
+# Variables like HA_TOKEN come from .env next to compose.yml, written by site.yml.
+
+theme:
+  # Catppuccin Mocha
+  background-color: 240 21 15
+  contrast-multiplier: 1.2
+  primary-color: 217 92 83
+  positive-color: 115 54 76
+  negative-color: 347 70 65
+
 pages:
   - name: kuzyo
+    head-widgets:
+      - type: search
+        search-engine: duckduckgo
+        autofocus: true
+
     columns:
       - size: small
         widgets:
-          - type: server-stats
-            servers:
-              - type: local
-                name: kuzyo
+          - type: clock
+            hour-format: 24h
+          - type: calendar
+            first-day-of-week: monday
           - type: weather
             location: Larnaca, Cyprus
             units: metric
@@ -25,8 +40,108 @@ pages:
               - title: Immich
                 url: https://photos.home.freethinkel.dev
                 icon: si:immich
-              - title: Immich (internet)
+              - title: Immich, public
                 url: https://photos.freethinkel.dev
                 icon: si:cloudflare
+
+          # Air conditioners and electricity from HA. The price matches eac.price
+          # in homeassistant/config/configuration.yaml.
+          - type: custom-api
+            title: Home
+            cache: 1m
+            url: https://ha.home.freethinkel.dev/api/states
+            headers:
+              Authorization: Bearer ${HA_TOKEN}
+            template: |
+              {{ if ne .Response.StatusCode 200 }}
+                <p class="color-negative">Home Assistant answered {{ .Response.StatusCode }}: put a long-lived token into HA_TOKEN in kuzyo/.env.</p>
+              {{ else }}
+                {{ $j := .JSON }}
+                <ul class="list list-gap-10">
+                {{ range $j.Array `#(entity_id%"climate.*")#` }}
+                  <li class="flex justify-between align-center">
+                    <span class="size-h4 color-highlight">{{ .String "attributes.friendly_name" }}</span>
+                    {{ if ne (.String "state") "off" }}
+                      <span class="size-h5 color-positive">
+                        {{ replaceAll "_only" "" (.String "state") }} · {{ .Float "attributes.setpoint" | printf "%.0f" }}°
+                      </span>
+                    {{ else }}
+                      <span class="size-h5 color-subdue">off</span>
+                    {{ end }}
+                  </li>
+                {{ end }}
+                </ul>
+                {{ $day := $j.Float `#(entity_id=="sensor.electricity_meter").attributes.day` }}
+                <div class="flex justify-between text-center margin-top-20">
+                  <div>
+                    <div class="color-highlight size-h3">{{ $day | printf "%.0f" }} kWh</div>
+                    <div class="size-h6">YESTERDAY</div>
+                  </div>
+                  <div>
+                    <div class="color-highlight size-h3">€{{ mul $day 0.319 | printf "%.2f" }}</div>
+                    <div class="size-h6">COST</div>
+                  </div>
+                  <div>
+                    <div class="color-highlight size-h3">{{ $j.Float `#(entity_id=="sensor.electricity_meter").state` | printf "%.0f" }}</div>
+                    <div class="size-h6">METER, KWH</div>
+                  </div>
+                </div>
+              {{ end }}
+
           - type: docker-containers
             title: Containers in apps
+
+      - size: small
+        widgets:
+          - type: server-stats
+            servers:
+              - type: local
+                name: kuzyo
+
+          - type: custom-api
+            title: Cloudflare Tunnel
+            cache: 1m
+            url: https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel/${CF_TUNNEL_ID}
+            headers:
+              Authorization: Bearer ${CF_API_TOKEN}
+            template: |
+              {{ $status := .JSON.String "result.status" }}
+              <ul class="list list-gap-10">
+                <li class="flex justify-between align-center">
+                  <span class="size-h6">STATUS</span>
+                  <span class="size-h5 {{ if eq $status "healthy" }}color-positive{{ else }}color-negative{{ end }}">{{ $status }}</span>
+                </li>
+                <li class="flex justify-between align-center">
+                  <span class="size-h6">CONNECTIONS</span>
+                  <span class="size-h5 color-highlight">{{ len (.JSON.Array "result.connections") }}</span>
+                </li>
+                <li class="flex justify-between align-center">
+                  <span class="size-h6">EDGES</span>
+                  <span class="size-h5 color-highlight">{{ range .JSON.Array "result.connections" }}{{ .String "colo_name" }} {{ end }}</span>
+                </li>
+              </ul>
+
+          - type: releases
+            show-source-icon: true
+            repositories:
+              - immich-app/immich
+              - home-assistant/core
+              - glanceapp/glance
+              - jesseduffield/lazydocker
+
+          - type: bookmarks
+            groups:
+              - title: Admin
+                links:
+                  - title: Energy in HA
+                    url: https://ha.home.freethinkel.dev/energy
+                  - title: Immich admin
+                    url: https://photos.home.freethinkel.dev/admin
+                  - title: Router
+                    url: http://192.168.1.1
+                  - title: Cloudflare
+                    url: https://dash.cloudflare.com
+                  - title: Tailscale
+                    url: https://login.tailscale.com/admin/machines
+                  - title: EAC meter readings
+                    url: https://meterreading-dso.eac.com.cy

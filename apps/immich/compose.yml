@@ -12,6 +12,12 @@ name: immich
 services:
   immich-server:
     container_name: immich_server
+    labels:
+      glance.id: immich
+      glance.name: Immich
+      glance.icon: si:immich
+      glance.url: https://photos.home.freethinkel.dev
+      glance.description: Photos and videos
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     extends:
       file: hwaccel.transcoding.yml
@@ -20,7 +26,7 @@ services:
       # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
       - ${UPLOAD_LOCATION}:/data
       - /etc/localtime:/etc/localtime:ro
-      # External library: photos dropped into Photos/ on the files share.
+      # External library: photos dropped into Photos/ on the ssd share.
       - /files/Photos:/mnt/photos:ro
     env_file:
       - .env
@@ -35,6 +41,9 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
+    labels:
+      glance.parent: immich
+      glance.name: Machine learning
     # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
     # Example tag: ${IMMICH_VERSION:-release}-cuda
     image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
@@ -51,6 +60,9 @@ services:
 
   redis:
     container_name: immich_redis
+    labels:
+      glance.parent: immich
+      glance.name: Valkey
     image: docker.io/valkey/valkey:9@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf
     healthcheck:
       test: redis-cli ping | grep -q PONG || exit 1
@@ -58,6 +70,9 @@ services:
 
   database:
     container_name: immich_postgres
+    labels:
+      glance.parent: immich
+      glance.name: Postgres
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}

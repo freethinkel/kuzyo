@@ -25,10 +25,10 @@ Runs on the host with host networking (`homeassistant/compose.yml`, data in
 so a guest behind `incusbr0` would miss mDNS and SSDP discovery. Bluetooth
 goes through BlueZ on the host over D-Bus.
 
-HA is the source of truth, as in [ai/domovoy](https://github.com/ai/domovoy):
-change things in the UI, then `homeassistant/pull.sh` copies the YAML into
-`homeassistant/config/` and renders areas and entities into
-`homeassistant/home.yaml`. Commit the result.
+HA is the source of truth, as in [ai/domovoy](https://github.com/ai/domovoy).
+Change things in the UI, run `homeassistant/pull.sh`, commit. The script
+copies the YAML into `homeassistant/config/` and renders areas and entities
+into `homeassistant/home.yaml`.
 
 ## Names and the internet
 
@@ -43,8 +43,8 @@ Everything goes through the `edge` stack on the host (`edge/`):
 - **cloudflared** publishes `photos.freethinkel.dev` to the internet through
   Cloudflare Tunnel `kuzyo`. Routes live in `edge/cloudflared.yml`; every
   public name also needs a proxied CNAME to `<tunnel id>.cfargotunnel.com`.
-  Cloudflare caps a request at 100 MB, so big video uploads go over the LAN
-  name (Immich app → automatic URL switching).
+  Cloudflare caps a request at 100 MB, so big video uploads have to go over
+  the LAN name. Turn on automatic URL switching in the Immich app.
 - `kuzyo.local` works on the LAN through avahi.
 
 Secrets live in `.env` next to this file, outside git; `.env.sample` lists
@@ -52,12 +52,12 @@ them and says how to make each one. `site.yml` reads `.env` directly, nothing
 to source first.
 
 The USB SSD (exFAT, label `files`, readable on a Mac too) is mounted at
-`/srv/files` and shared by Samba on the host: `smb://kuzyo.local/files`, user
+`/srv/files` and shared by Samba on the host: `smb://kuzyo.local/ssd`, user
 `freethinkel`, password `SAMBA_PASSWORD` in `.env`. Only the LAN and
 Tailscale reach port 445.
 
-Compose stacks for the `apps` container live in `apps/<name>/` and are listed
-in `stacks` in `site.yml` with the port to publish on the host.
+Compose stacks for the `apps` container live in `apps/<name>/`. Add each one
+to `stacks` in `site.yml` with the port to publish on the host.
 
 ## Install without a USB stick
 
