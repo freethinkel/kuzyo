@@ -46,6 +46,12 @@ Everything goes through the `edge` stack on the host (`edge/`):
   Cloudflare caps a request at 100 MB, so big video uploads have to go over
   the LAN name. Turn on automatic URL switching in the Immich app.
 - `kuzyo.local` works on the LAN through avahi.
+- **AdGuard Home** is the DNS server with ad blocking, on port 53 of
+  `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.
+  The router hands out `192.168.1.243` as DNS over DHCP. The UI is
+  `adguard.home.freethinkel.dev`, user `admin`, password
+  `ADGUARD_PASSWORD` in `.env`; the UI is the source of truth for its
+  settings, `site.yml` only seeds the first config.
 
 Secrets live in `.env` next to this file, outside git; `.env.sample` lists
 them and says how to make each one. `site.yml` reads `.env` directly, nothing
@@ -55,7 +61,10 @@ The USB SSD (exFAT, label `files`, readable on a Mac too) is mounted at
 `/srv/files`; only its `shared-files` folder is served by Samba on the host:
 `smb://kuzyo.local/Kenos`, user
 `freethinkel`, password `SAMBA_PASSWORD` in `.env`. Only the LAN and
-Tailscale reach port 445.
+Tailscale reach port 445. One address for home and away:
+`smb://kenos.home.freethinkel.dev/Kenos`. At home it goes over the LAN;
+away it goes over Tailscale, since kuzyo advertises `192.168.1.0/24` as a
+subnet route (approved once in the Tailscale admin console).
 
 Every night at 04:00 `kuzyo-backup` puts the Immich database and
 `/srv/homeassistant` into a restic repo at `/srv/files/backup`, password

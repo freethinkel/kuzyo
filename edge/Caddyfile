@@ -14,6 +14,11 @@
 		reverse_proxy localhost:2283
 	}
 
+	@adguard host adguard.home.freethinkel.dev
+	handle @adguard {
+		reverse_proxy localhost:3000
+	}
+
 	handle {
 		respond 404
 	}

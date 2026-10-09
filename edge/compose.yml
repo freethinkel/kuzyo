@@ -25,3 +25,14 @@ services:
       - ./cloudflared.yml:/etc/cloudflared/config.yml:ro
       - ./credentials.json:/etc/cloudflared/credentials.json:ro
     restart: unless-stopped
+
+  # DNS for the LAN and the tailnet, with ad blocking. Config and the
+  # bind addresses: site.yml. UI: adguard.home.freethinkel.dev.
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    network_mode: host
+    volumes:
+      - ./adguard/conf:/opt/adguardhome/conf
+      - ./adguard/work:/opt/adguardhome/work
+    restart: unless-stopped

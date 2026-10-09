@@ -18,6 +18,7 @@
     eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
     ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
     restic_password: "{{ lookup('ansible.builtin.ini', 'RESTIC_PASSWORD', file='.env', type='properties') }}"
+    adguard_password: "{{ lookup('ansible.builtin.ini', 'ADGUARD_PASSWORD', file='.env', type='properties') }}"
     # Compose stacks in apps/, run in the apps container. The port is
     # published on the host, so LAN and Tailscale reach it.
     stacks:
@@ -51,6 +52,20 @@
       ansible.builtin.apt:
         name: tailscale
         update_cache: true
+
+    # Subnet router for the home LAN, so *.home.freethinkel.dev and
+    # smb://kenos.home.freethinkel.dev work away from home over Tailscale and
+    # directly at home. The route needs a one-off approval in the admin
+    # console: Machines → kuzyo → Edit route settings.
+    - name: IP forwarding for the subnet route
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        sysctl_file: /etc/sysctl.d/99-tailscale.conf
+
+    - name: Advertise the home LAN
+      ansible.builtin.command: tailscale set --advertise-routes=192.168.1.0/24
+      changed_when: false
 
     - name: Drop-in directories
       ansible.builtin.file:
@@ -123,6 +138,16 @@
         dest: /etc/default/grub.d/consoleblank.cfg
         content: |
           GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT consoleblank=60"
+        mode: "0644"
+      notify: Update grub
+
+    # SanDisk Extreme 55DD drops off the bus when bound to uas (Synchronize
+    # Cache failed, then USB disconnect). usb-storage handles it without UAS.
+    - name: Keep the files disk off UAS
+      ansible.builtin.copy:
+        dest: /etc/default/grub.d/usb-quirk.cfg
+        content: |
+          GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT usb-storage.quirks=0781:55dd:u"
         mode: "0644"
       notify: Update grub
 
@@ -202,6 +227,43 @@
         owner: "65532"
         mode: "0400"
 
+    # AdGuard Home cannot take 0.0.0.0:53: dnsmasq of incusbr0 and resolved
+    # hold port 53 on their own addresses. It binds the LAN and tailnet
+    # addresses instead, and nonlocal bind lets it start before Wi-Fi or
+    # Tailscale is up, and on whichever of cable and Wi-Fi is not.
+    - name: Bind addresses not up yet
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_nonlocal_bind
+        value: "1"
+        sysctl_file: /etc/sysctl.d/99-adguard.conf
+
+    - name: AdGuard Home config directory
+      ansible.builtin.file:
+        path: /srv/edge/adguard/conf
+        state: directory
+        mode: "0700"
+
+    # Seed only, written once: after that AdGuard Home owns the file and its
+    # UI is the source of truth. Defaults fill in everything not set here.
+    # The whole LAN is one /24, so the per-subnet rate limit is off.
+    - name: AdGuard Home seed config
+      ansible.builtin.copy:
+        dest: /srv/edge/adguard/conf/AdGuardHome.yaml
+        force: false
+        content: |
+          http:
+            address: 127.0.0.1:3000
+          users:
+            - name: admin
+              password: {{ adguard_password | password_hash('bcrypt') }}
+          dns:
+            bind_hosts: [192.168.1.243, 192.168.1.223, 100.72.74.39]
+            port: 53
+            ratelimit: 0
+          schema_version: 34
+        mode: "0600"
+      no_log: true
+
     - name: Start edge
       ansible.builtin.command: docker compose up -d --build
       args:
@@ -269,7 +331,8 @@
         -c security.syscalls.intercept.setxattr=true
       args:
         creates: "/var/lib/incus/storage-pools/default/containers/{{ item }}"
-      loop: [apps, dev]
+      loop: [apps, dev, fishruff-playground]
+      tags: playground
 
     - name: Mount app data into apps
       ansible.builtin.command: incus config device add apps data disk source=/srv/data path=/data shift=true
@@ -279,8 +342,9 @@
 
     - name: Start guests with the host
       ansible.builtin.command: "incus config set {{ item }} boot.autostart=true"
-      loop: [apps, dev]
+      loop: [apps, dev, fishruff-playground]
       changed_when: false
+      tags: playground
 
     # Compose stacks from apps/<name>/ land in /srv/stacks/<name> on the host
     # and show up in the apps container as /stacks/<name>.
@@ -330,6 +394,36 @@
       args:
         creates: /var/lib/incus/storage-pools/default/containers/dev/rootfs/root/.ssh/authorized_keys
 
+    # fishruff's box, moved off pocketserver. Their ~/.zshrc wants the zsh
+    # plugins, fzf and starship from apt. The home directory itself was
+    # copied over by hand once, keys included.
+    - name: Packages and the fishruff user in fishruff-playground
+      ansible.builtin.command: >-
+        incus exec fishruff-playground -- sh -c 'until getent hosts deb.debian.org >/dev/null; do sleep 1; done;
+        apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q openssh-server sudo curl git
+        zsh zsh-autosuggestions zsh-syntax-highlighting fzf starship nodejs npm build-essential &&
+        useradd -m -s /usr/bin/zsh -G sudo fishruff &&
+        echo "fishruff ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/fishruff'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/home/fishruff
+      tags: playground
+
+    - name: herdr and Claude Code for fishruff
+      ansible.builtin.command: >-
+        incus exec fishruff-playground -- su - fishruff -c
+        'curl -fsSL https://herdr.dev/install.sh | sh && curl -fsSL https://claude.ai/install.sh | bash'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/home/fishruff/.local/bin/claude
+      tags: playground
+
+    # fishruff reaches it over their own tailnet. Logging in is a one-off by
+    # hand: tailscale up --hostname=fishruff-playground, link to fishruff.
+    - name: Tailscale in fishruff-playground
+      ansible.builtin.command: incus exec fishruff-playground -- sh -c 'curl -fsSL https://tailscale.com/install.sh | sh'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/usr/bin/tailscale
+      tags: playground
+
     # File share on the USB SSD (exFAT, label files, so a Mac can read it
     # too), served by Samba on the host. exFAT has no owners, so the mount
     # hands everything to freethinkel; nofail keeps boot going if it is
@@ -348,6 +442,48 @@
         fstype: exfat
         opts: nofail,x-systemd.device-timeout=10s,uid=1000,gid=1000,fmask=0000,dmask=0000
         state: mounted
+
+    # The apps container bind-mounts /srv/files. Incus must not start before
+    # the disk is mounted, or it binds the empty mountpoint on the NVMe. Only
+    # Incus waits: Home Assistant and the edge must come up without the disk.
+    - name: Incus waits for the files disk
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/incus.service.d/files-disk.conf
+        content: |
+          [Unit]
+          RequiresMountsFor=/srv/files
+        mode: "0644"
+      notify: Reload systemd
+
+    # Same for Samba: without the disk it would serve the empty directory on
+    # the NVMe, and clients would write there.
+    - name: Samba waits for the files disk
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/smbd.service.d/files-disk.conf
+        content: |
+          [Unit]
+          RequiresMountsFor=/srv/files
+        mode: "0644"
+      notify: Reload systemd
+
+    # Follows the disk in and out: stops apps and Samba and unmounts when it is
+    # unplugged, mounts and restarts them when it comes back.
+    - name: Files disk watcher
+      ansible.builtin.copy:
+        src: "files/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: kuzyo-files-watch, dest: /usr/local/sbin/kuzyo-files-watch, mode: "0755" }
+        - { src: kuzyo-files-watch.service, dest: /etc/systemd/system/kuzyo-files-watch.service, mode: "0644" }
+      notify: Reload systemd
+
+    - name: Files disk watcher enabled
+      ansible.builtin.systemd_service:
+        name: kuzyo-files-watch.service
+        enabled: true
+        state: started
+        daemon_reload: true
 
     # Only this folder is shared, the rest of the disk stays local.
     - name: Shared folder on the files disk
@@ -397,6 +533,13 @@
         executable: /bin/bash
       environment:
         PW: "{{ samba_password }}"
+      changed_when: false
+
+    # smbd binds the addresses present when it starts, and it starts before
+    # tailscale0 has one. Tailscale forwards 445 to localhost instead, so the
+    # share works over the tailnet whatever the start order.
+    - name: SMB over Tailscale
+      ansible.builtin.command: tailscale serve --bg --tcp 445 tcp://localhost:445
       changed_when: false
 
     - name: Docker config directory
@@ -529,6 +672,7 @@
           trap 'btrfs -q subvolume delete /srv/homeassistant-backup' EXIT
           btrfs -q subvolume snapshot -r /srv/homeassistant /srv/homeassistant-backup
           restic backup -q --tag homeassistant /srv/homeassistant-backup
+          restic backup -q --tag adguard /srv/edge/adguard/conf
           restic forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 
     - name: Restic repository

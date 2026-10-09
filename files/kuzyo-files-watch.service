@@ -1,0 +1,11 @@
+[Unit]
+Description=Follow the files disk: stop services when it is unplugged, restart them when it is back
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/kuzyo-files-watch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,47 @@
+#!/bin/bash
+# Watches the files disk (label "files") and follows it in and out:
+# unplugged -> stop apps and Samba, unmount /srv/files;
+# plugged back -> mount /srv/files, then start Samba and apps again.
+# Runs as kuzyo-files-watch.service. Logs go to the journal.
+set -u
+
+LABEL=/dev/disk/by-label/files
+MNT=/srv/files
+INTERVAL=5
+RETRY=30
+
+log() { echo "kuzyo-files-watch: $*"; }
+
+present() { [ -e "$LABEL" ]; }
+mounted() { mountpoint -q "$MNT"; }
+
+detach() {
+  log "disk gone, detaching"
+  systemctl stop smbd nmbd
+  timeout 60 incus stop apps || incus stop apps --force
+  # Device is gone, so the mount is stale. Lazy unmount frees it.
+  systemctl stop srv-files.mount || umount -l "$MNT"
+  log "detached, safe state"
+}
+
+attach() {
+  log "disk back, attaching"
+  systemctl reset-failed srv-files.mount 2>/dev/null
+  systemctl start srv-files.mount
+  if ! mounted; then
+    log "mount failed, retry in ${RETRY}s"
+    return 1
+  fi
+  systemctl start smbd nmbd
+  incus start apps
+  log "attached, services back"
+}
+
+while true; do
+  if present && ! mounted; then
+    attach || sleep "$RETRY"
+  elif ! present && mounted; then
+    detach
+  fi
+  sleep "$INTERVAL"
+done
