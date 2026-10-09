@@ -46,11 +46,17 @@
       entity_id: sensor.mmgg_sg_413818243_fi1_pet_food_left_level_p_2_6
       to: [Low, Empty]
   actions:
+    - variables:
+        message: >-
+          {{ 'Корм закончился' if trigger.to_state.state == 'Empty' else 'Корм заканчивается' }}
     - action: notify.mobile_app_iphone_egor
       data:
         title: Кормушка
-        message: >-
-          {{ 'Корм закончился' if trigger.to_state.state == 'Empty' else 'Корм заканчивается' }}
+        message: "{{ message }}"
+    - action: notify.mobile_app_iphone_valeriia
+      data:
+        title: Кормушка
+        message: "{{ message }}"
 
 - id: feeder_fault
   alias: Кормушка, ошибка
