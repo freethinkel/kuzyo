@@ -37,6 +37,9 @@ entities:
   - id: button.living_room_stop_program
     name: "Stop program"
     area: living_room
+  - id: button.mmgg_sg_413818243_fi1_reset_desiccant_life_a_11_1
+    name: " Desiccant Reset Desiccant Life"
+    area: kitchen
   - id: climate.bedroom
     name: "Bedroom"
     area: bedroom
@@ -48,12 +51,27 @@ entities:
     area: living_room
   - id: device_tracker.iphone_egor
     name: "iPhone Egor"
+  - id: device_tracker.iphone_valeriia
+    name: "iPhone (\u0412\u0430\u043b\u0435\u0440\u0438\u044f)"
   - id: event.backup_automatic_backup
     name: "Automatic backup"
+  - id: event.mmgg_sg_413818243_fi1_feedsuccess_e_4_1
+    name: "* feedserve feedsuccess"
+    area: kitchen
+  - id: light.mmgg_sg_413818243_fi1_s_3_indicator_light
+    name: " Indicator Light"
+    area: kitchen
   - id: notify.iphone_egor
     name: "iPhone Egor"
+  - id: notify.iphone_valeriia
+    name: "iPhone (\u0412\u0430\u043b\u0435\u0440\u0438\u044f)"
+  - id: notify.mmgg_sg_413818243_fi1_pet_food_out_a_2_1
+    name: " Pet Feeder Pet Food Out"
+    area: kitchen
   - id: person.egor
     name: "Egor"
+  - id: person.valeriia
+    name: "Valeriia"
   - id: select.bedroom_active_program
     name: "Active program"
     area: bedroom
@@ -89,10 +107,6 @@ entities:
     name: "External IP"
   - id: sensor.debian_router_upload_speed
     name: "Upload speed"
-  - id: sensor.electricity_maps_co2_intensity
-    name: "CO2 intensity"
-  - id: sensor.electricity_maps_grid_fossil_fuel_percentage
-    name: "Grid fossil fuel percentage"
   - id: sensor.electricity_meter
     name: "Electricity meter"
   - id: sensor.home_office_program_progress
@@ -127,6 +141,15 @@ entities:
   - id: sensor.living_room_program_progress
     name: "Program progress"
     area: living_room
+  - id: sensor.mmgg_sg_413818243_fi1_desiccant_left_time_p_11_2
+    name: " Desiccant Desiccant Left Time"
+    area: kitchen
+  - id: sensor.mmgg_sg_413818243_fi1_fault_p_2_1
+    name: " Pet Feeder Device Fault"
+    area: kitchen
+  - id: sensor.mmgg_sg_413818243_fi1_pet_food_left_level_p_2_6
+    name: " Pet Feeder Pet Food Left Level"
+    area: kitchen
   - id: sensor.sun_next_dawn
     name: "Next dawn"
   - id: sensor.sun_next_dusk
