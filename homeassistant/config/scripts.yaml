@@ -8,3 +8,56 @@ feed_cat:
         entity_id: notify.mmgg_sg_413818243_fi1_pet_food_out_a_2_1
       data:
         message: "1"
+
+# Home Connect now and then times out, so the AC automations go through here:
+# up to three tries per unit, then a push if one still did not answer.
+ac_set:
+  alias: Кондиционеры, с повторами
+  mode: parallel
+  fields:
+    entities:
+      selector:
+        entity:
+          domain: climate
+          multiple: true
+    hvac_mode:
+      selector:
+        text:
+    temperature:
+      selector:
+        number:
+          min: 16
+          max: 30
+  sequence:
+    - repeat:
+        for_each: "{{ [entities] | flatten }}"
+        sequence:
+          - variables:
+              unit: "{{ repeat.item }}"
+          - repeat:
+              sequence:
+                - if: "{{ hvac_mode != 'off' and temperature is defined }}"
+                  then:
+                    - action: climate.set_temperature
+                      continue_on_error: true
+                      target:
+                        entity_id: "{{ unit }}"
+                      data:
+                        hvac_mode: "{{ hvac_mode }}"
+                        temperature: "{{ temperature }}"
+                  else:
+                    - action: climate.set_hvac_mode
+                      continue_on_error: true
+                      target:
+                        entity_id: "{{ unit }}"
+                      data:
+                        hvac_mode: "{{ hvac_mode }}"
+                - wait_template: "{{ is_state(unit, hvac_mode) }}"
+                  timeout: "00:00:10"
+              until: "{{ is_state(unit, hvac_mode) or repeat.index >= 3 }}"
+          - if: "{{ not is_state(unit, hvac_mode) }}"
+            then:
+              - action: notify.mobile_app_iphone_egor
+                data:
+                  title: Кондиционер не ответил
+                  message: "{{ state_attr(unit, 'friendly_name') }}: не получилось поставить {{ hvac_mode }}"

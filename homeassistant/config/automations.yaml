@@ -6,9 +6,10 @@
       to: "0"
       for: "00:05:00"
   actions:
-    - action: climate.turn_off
-      target:
-        entity_id: [climate.living_room, climate.bedroom, climate.home_office]
+    - action: script.ac_set
+      data:
+        entities: [climate.living_room, climate.bedroom, climate.home_office]
+        hvac_mode: "off"
 
 - id: ac_cool_on_arrival
   alias: Пришли домой в жару, гостиная охлаждается
@@ -22,10 +23,9 @@
       attribute: temperature
       above: 28
   actions:
-    - action: climate.set_temperature
-      target:
-        entity_id: climate.living_room
+    - action: script.ac_set
       data:
+        entities: climate.living_room
         hvac_mode: cool
         temperature: 25
 
@@ -35,9 +35,10 @@
     - trigger: time
       at: "01:00:00"
   actions:
-    - action: climate.turn_off
-      target:
-        entity_id: [climate.living_room, climate.home_office]
+    - action: script.ac_set
+      data:
+        entities: [climate.living_room, climate.home_office]
+        hvac_mode: "off"
 
 - id: feeder_food_low
   alias: Кормушка, корм заканчивается
@@ -201,19 +202,15 @@
       after: "22:00:00"
       before: "05:00:00"
   actions:
-    - action: climate.turn_off
-      target:
-        entity_id: [climate.living_room, climate.home_office]
-    - if:
-        - condition: state
-          entity_id: climate.bedroom
-          state: cool
-      then:
-        - action: climate.set_temperature
-          target:
-            entity_id: climate.bedroom
-          data:
-            temperature: 26
+    - action: script.ac_set
+      data:
+        entities: [climate.living_room, climate.home_office]
+        hvac_mode: "off"
+    - action: script.ac_set
+      data:
+        entities: climate.bedroom
+        hvac_mode: cool
+        temperature: 26
 
 - id: rain_tomorrow
   alias: Завтра дождь
