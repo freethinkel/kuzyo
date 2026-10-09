@@ -1,0 +1,10 @@
+# A switch in Apple Home through the HomeKit bridge, so Siri can feed the cat.
+feed_cat:
+  alias: Покормить кота
+  icon: mdi:food-drumstick
+  sequence:
+    - action: notify.send_message
+      target:
+        entity_id: notify.mmgg_sg_413818243_fi1_pet_food_out_a_2_1
+      data:
+        message: "1"
