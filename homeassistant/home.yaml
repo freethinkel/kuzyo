@@ -38,7 +38,7 @@ entities:
     name: "Stop program"
     area: living_room
   - id: button.mmgg_sg_413818243_fi1_reset_desiccant_life_a_11_1
-    name: " Desiccant Reset Desiccant Life"
+    name: "\u0421\u0431\u0440\u043e\u0441\u0438\u0442\u044c \u0432\u043b\u0430\u0433\u043e\u043f\u043e\u0433\u043b\u043e\u0442\u0438\u0442\u0435\u043b\u044c"
     area: kitchen
   - id: climate.bedroom
     name: "Bedroom"
@@ -56,17 +56,17 @@ entities:
   - id: event.backup_automatic_backup
     name: "Automatic backup"
   - id: event.mmgg_sg_413818243_fi1_feedsuccess_e_4_1
-    name: "* feedserve feedsuccess"
+    name: "\u041a\u043e\u0440\u043c \u0432\u044b\u0434\u0430\u043d"
     area: kitchen
   - id: light.mmgg_sg_413818243_fi1_s_3_indicator_light
-    name: " Indicator Light"
+    name: "\u041f\u043e\u0434\u0441\u0432\u0435\u0442\u043a\u0430"
     area: kitchen
   - id: notify.iphone_egor
     name: "iPhone Egor"
   - id: notify.iphone_valeriia
     name: "iPhone (\u0412\u0430\u043b\u0435\u0440\u0438\u044f)"
   - id: notify.mmgg_sg_413818243_fi1_pet_food_out_a_2_1
-    name: " Pet Feeder Pet Food Out"
+    name: "\u041f\u043e\u043a\u043e\u0440\u043c\u0438\u0442\u044c"
     area: kitchen
   - id: person.egor
     name: "Egor"
@@ -142,13 +142,13 @@ entities:
     name: "Program progress"
     area: living_room
   - id: sensor.mmgg_sg_413818243_fi1_desiccant_left_time_p_11_2
-    name: " Desiccant Desiccant Left Time"
+    name: "\u0412\u043b\u0430\u0433\u043e\u043f\u043e\u0433\u043b\u043e\u0442\u0438\u0442\u0435\u043b\u044c"
     area: kitchen
   - id: sensor.mmgg_sg_413818243_fi1_fault_p_2_1
-    name: " Pet Feeder Device Fault"
+    name: "\u041e\u0448\u0438\u0431\u043a\u0430"
     area: kitchen
   - id: sensor.mmgg_sg_413818243_fi1_pet_food_left_level_p_2_6
-    name: " Pet Feeder Pet Food Left Level"
+    name: "\u041a\u043e\u0440\u043c"
     area: kitchen
   - id: sensor.sun_next_dawn
     name: "Next dawn"
