@@ -1,1 +1,94 @@
-[]
+- id: ac_off_when_everyone_left
+  alias: Все ушли, кондиционеры выключаются
+  triggers:
+    - trigger: state
+      entity_id: zone.home
+      to: "0"
+      for: "00:05:00"
+  actions:
+    - action: climate.turn_off
+      target:
+        entity_id: [climate.living_room, climate.bedroom, climate.home_office]
+
+- id: ac_cool_on_arrival
+  alias: Пришли домой в жару, гостиная охлаждается
+  triggers:
+    - trigger: state
+      entity_id: zone.home
+      from: "0"
+  conditions:
+    - condition: numeric_state
+      entity_id: weather.forecast_home
+      attribute: temperature
+      above: 28
+  actions:
+    - action: climate.set_temperature
+      target:
+        entity_id: climate.living_room
+      data:
+        hvac_mode: cool
+        temperature: 25
+
+- id: ac_off_at_night
+  alias: Ночью кондиционеры в гостиной и кабинете выключаются
+  triggers:
+    - trigger: time
+      at: "01:00:00"
+  actions:
+    - action: climate.turn_off
+      target:
+        entity_id: [climate.living_room, climate.home_office]
+
+- id: feeder_food_low
+  alias: Кормушка, корм заканчивается
+  triggers:
+    - trigger: state
+      entity_id: sensor.mmgg_sg_413818243_fi1_pet_food_left_level_p_2_6
+      to: [Low, Empty]
+  actions:
+    - action: notify.mobile_app_iphone_egor
+      data:
+        title: Кормушка
+        message: >-
+          {{ 'Корм закончился' if trigger.to_state.state == 'Empty' else 'Корм заканчивается' }}
+
+- id: feeder_fault
+  alias: Кормушка, ошибка
+  triggers:
+    - trigger: state
+      entity_id: sensor.mmgg_sg_413818243_fi1_fault_p_2_1
+      to: [Error, Timeout]
+  actions:
+    - action: notify.mobile_app_iphone_egor
+      data:
+        title: Кормушка
+        message: "Ошибка: {{ trigger.to_state.state }}"
+
+# Every morning until the desiccant is replaced and its counter reset.
+- id: feeder_desiccant
+  alias: Кормушка, пора менять влагопоглотитель
+  triggers:
+    - trigger: time
+      at: "10:00:00"
+  conditions:
+    - condition: numeric_state
+      entity_id: sensor.mmgg_sg_413818243_fi1_desiccant_left_time_p_11_2
+      below: 1
+  actions:
+    - action: notify.mobile_app_iphone_egor
+      data:
+        title: Кормушка
+        message: Пора заменить влагопоглотитель, потом нажмите «Сбросить влагопоглотитель»
+
+- id: feeder_fed
+  alias: Кормушка, корм выдан
+  triggers:
+    - trigger: state
+      entity_id: event.mmgg_sg_413818243_fi1_feedsuccess_e_4_1
+      not_from: [unavailable]
+      not_to: [unavailable, unknown]
+  actions:
+    - action: notify.mobile_app_iphone_egor
+      data:
+        title: Кормушка
+        message: Корм выдан
