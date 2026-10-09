@@ -41,3 +41,9 @@ eac:
   # eac.com.cy → Supply → Tariffs → Fuel Price Adjustment. Fixed charges
   # (supply €8, meter data €0.94 per two months) are left out.
   price: 0.319
+
+# On once this month's electricity passed the budget, so the alert in
+# automations.yaml goes out once a month; it is cleared on the 1st.
+input_boolean:
+  electricity_budget_alerted:
+    name: Электричество, бюджет превышен
