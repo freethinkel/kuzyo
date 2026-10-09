@@ -235,9 +235,11 @@
         {{ (day.precipitation or 0) >= 1 or day.condition in
            ['rainy', 'pouring', 'lightning-rainy', 'snowy-rainy', 'hail'] }}
     - action: notify.mobile_app_iphone_egor
-      data:
+      data: &rain
         title: Завтра дождь
         message: "{{ day.precipitation or 0 }} мм, уберите вещи с балкона"
+    - action: notify.mobile_app_iphone_valeriia
+      data: *rain
 
 - id: internet_back
   alias: Интернет вернулся
@@ -255,3 +257,18 @@
         message: >-
           Не было {{ ((now() - trigger.from_state.last_changed).total_seconds() / 60) | round | int }} мин,
           с {{ as_local(trigger.from_state.last_changed).strftime('%H:%M') }}
+
+- id: rent_reminder
+  alias: Оплатить квартиру
+  triggers:
+    - trigger: time
+      at: "10:00:00"
+  conditions:
+    - "{{ now().day == 1 }}"
+  actions:
+    - action: notify.mobile_app_iphone_egor
+      data: &rent
+        title: Квартира
+        message: Сегодня 1-е, пора заплатить за квартиру
+    - action: notify.mobile_app_iphone_valeriia
+      data: *rent
