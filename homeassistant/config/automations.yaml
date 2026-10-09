@@ -188,12 +188,13 @@
                 title: Электричество
                 message: "С начала месяца уже €{{ '%.2f' | format(eur) }}, бюджет €80"
 
-# Needs the Focus sensor enabled in the HA app on the iPhone.
+# Needs the Focus sensor enabled in the HA app on each iPhone. Whoever goes
+# to sleep first sets the night mode.
 - id: sleep_focus
   alias: Фокус «Сон», кондиционеры на ночь
   triggers:
     - trigger: state
-      entity_id: binary_sensor.iphone_egor_focus
+      entity_id: [binary_sensor.iphone_egor_focus, binary_sensor.iphone_valeriia_focus]
       to: "on"
   conditions:
     - condition: time
