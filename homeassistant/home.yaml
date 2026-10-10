@@ -13,6 +13,34 @@ areas:
     name: "Outdoor"
 
 entities:
+  - id: automation.elektrichestvo_obnovit_tarif
+    name: "Электричество, обновить тариф"
+  - id: automation.elektrichestvo_svodka_za_nedeliu
+    name: "Электричество, сводка за неделю"
+  - id: automation.elektrichestvo_za_mesiats_bolshe_eur80
+    name: "Электричество, за месяц больше €80"
+  - id: automation.fokus_son_konditsionery_na_noch
+    name: "Фокус «Сон», кондиционеры на ночь"
+  - id: automation.internet_vernulsia
+    name: "Интернет вернулся"
+  - id: automation.kormushka_korm_vydan
+    name: "Кормушка, корм выдан"
+  - id: automation.kormushka_korm_zakanchivaetsia
+    name: "Кормушка, корм заканчивается"
+  - id: automation.kormushka_oshibka
+    name: "Кормушка, ошибка"
+  - id: automation.kormushka_pora_meniat_vlagopoglotitel
+    name: "Кормушка, пора менять влагопоглотитель"
+  - id: automation.nochiu_konditsionery_v_gostinoi_i_kabinete_vykliuchaiutsia
+    name: "Ночью кондиционеры в гостиной и кабинете выключаются"
+  - id: automation.oplatit_kvartiru
+    name: "Оплатить квартиру"
+  - id: automation.prishli_domoi_v_zharu_gostinaia_okhlazhdaetsia
+    name: "Пришли домой в жару, гостиная охлаждается"
+  - id: automation.vse_ushli_konditsionery_vykliuchaiutsia
+    name: "Все ушли, кондиционеры выключаются"
+  - id: automation.zavtra_dozhd
+    name: "Завтра дождь"
   - id: binary_sensor.bedroom_connectivity
     name: "Connectivity"
     area: bedroom
@@ -23,8 +51,16 @@ entities:
     area: home_office
   - id: binary_sensor.iphone_egor_focus
     name: "iPhone Egor Focus"
+  - id: binary_sensor.iphone_egor_kiosk_mode
+    name: "iPhone Egor Kiosk Mode"
   - id: binary_sensor.iphone_egor_kiosk_screensaver
     name: "iPhone Egor Kiosk Screensaver"
+  - id: binary_sensor.iphone_valeriia_focus
+    name: "iPhone (Валерия) Focus"
+  - id: binary_sensor.iphone_valeriia_kiosk_mode
+    name: "iPhone (Валерия) Kiosk Mode"
+  - id: binary_sensor.iphone_valeriia_kiosk_screensaver
+    name: "iPhone (Валерия) Kiosk Screensaver"
   - id: binary_sensor.living_room_connectivity
     name: "Connectivity"
     area: living_room
@@ -58,6 +94,8 @@ entities:
   - id: event.mmgg_sg_413818243_fi1_feedsuccess_e_4_1
     name: "Корм выдан"
     area: kitchen
+  - id: input_boolean.electricity_budget_alerted
+    name: "Электричество, бюджет превышен"
   - id: light.mmgg_sg_413818243_fi1_s_3_indicator_light
     name: "Подсветка"
     area: kitchen
@@ -72,6 +110,10 @@ entities:
     name: "Egor"
   - id: person.valeriia
     name: "Valeriia"
+  - id: script.ac_set
+    name: "Кондиционеры, с повторами"
+  - id: script.feed_cat
+    name: "Покормить кота"
   - id: select.bedroom_active_program
     name: "Active program"
     area: bedroom
@@ -116,12 +158,18 @@ entities:
     name: "iPhone Egor Activity"
   - id: sensor.iphone_egor_app_version
     name: "iPhone Egor App Version"
+  - id: sensor.iphone_egor_audio_output
+    name: "iPhone Egor Audio Output"
   - id: sensor.iphone_egor_average_active_pace
     name: "iPhone Egor Average Active Pace"
   - id: sensor.iphone_egor_battery_level
     name: "iPhone Egor Battery Level"
   - id: sensor.iphone_egor_battery_state
     name: "iPhone Egor Battery State"
+  - id: sensor.iphone_egor_bssid
+    name: "iPhone Egor BSSID"
+  - id: sensor.iphone_egor_connection_type
+    name: "iPhone Egor Connection Type"
   - id: sensor.iphone_egor_current_cadence
     name: "iPhone Egor Current Cadence"
   - id: sensor.iphone_egor_current_pace
@@ -132,12 +180,76 @@ entities:
     name: "iPhone Egor Floors Ascended"
   - id: sensor.iphone_egor_floors_descended
     name: "iPhone Egor Floors Descended"
+  - id: sensor.iphone_egor_geocoded_location
+    name: "iPhone Egor Geocoded Location"
+  - id: sensor.iphone_egor_kiosk_brightness
+    name: "iPhone Egor Kiosk Brightness"
+  - id: sensor.iphone_egor_kiosk_volume
+    name: "iPhone Egor Kiosk Volume"
+  - id: sensor.iphone_egor_last_update_trigger
+    name: "iPhone Egor Last Update Trigger"
   - id: sensor.iphone_egor_location_permission
     name: "iPhone Egor Location permission"
   - id: sensor.iphone_egor_pressure
     name: "iPhone Egor Pressure"
+  - id: sensor.iphone_egor_sim_1
+    name: "iPhone Egor SIM 1"
+  - id: sensor.iphone_egor_sim_2
+    name: "iPhone Egor SIM 2"
+  - id: sensor.iphone_egor_ssid
+    name: "iPhone Egor SSID"
   - id: sensor.iphone_egor_steps
     name: "iPhone Egor Steps"
+  - id: sensor.iphone_egor_storage
+    name: "iPhone Egor Storage"
+  - id: sensor.iphone_valeriia_activity
+    name: "iPhone (Валерия) Activity"
+  - id: sensor.iphone_valeriia_app_version
+    name: "iPhone (Валерия) App Version"
+  - id: sensor.iphone_valeriia_audio_output
+    name: "iPhone (Валерия) Audio Output"
+  - id: sensor.iphone_valeriia_average_active_pace
+    name: "iPhone (Валерия) Average Active Pace"
+  - id: sensor.iphone_valeriia_battery_level
+    name: "iPhone (Валерия) Battery Level"
+  - id: sensor.iphone_valeriia_battery_state
+    name: "iPhone (Валерия) Battery State"
+  - id: sensor.iphone_valeriia_bssid
+    name: "iPhone (Валерия) BSSID"
+  - id: sensor.iphone_valeriia_connection_type
+    name: "iPhone (Валерия) Connection Type"
+  - id: sensor.iphone_valeriia_current_cadence
+    name: "iPhone (Валерия) Current Cadence"
+  - id: sensor.iphone_valeriia_current_pace
+    name: "iPhone (Валерия) Current Pace"
+  - id: sensor.iphone_valeriia_distance
+    name: "iPhone (Валерия) Distance"
+  - id: sensor.iphone_valeriia_floors_ascended
+    name: "iPhone (Валерия) Floors Ascended"
+  - id: sensor.iphone_valeriia_floors_descended
+    name: "iPhone (Валерия) Floors Descended"
+  - id: sensor.iphone_valeriia_geocoded_location
+    name: "iPhone (Валерия) Geocoded Location"
+  - id: sensor.iphone_valeriia_kiosk_brightness
+    name: "iPhone (Валерия) Kiosk Brightness"
+  - id: sensor.iphone_valeriia_kiosk_volume
+    name: "iPhone (Валерия) Kiosk Volume"
+  - id: sensor.iphone_valeriia_last_update_trigger
+    name: "iPhone (Валерия) Last Update Trigger"
+  - id: sensor.iphone_valeriia_location_permission
+    name: "iPhone (Валерия) Location permission"
+  - id: sensor.iphone_valeriia_pressure
+    name: "iPhone (Валерия) Pressure"
+  - id: sensor.iphone_valeriia_sim_1
+    name: "iPhone (Валерия) SIM 1"
+  - id: sensor.iphone_valeriia_sim_2
+    name: "iPhone (Валерия) SIM 2"
+  - id: sensor.iphone_valeriia_ssid
+    name: "iPhone (Валерия) SSID"
+  - id: sensor.iphone_valeriia_steps
+    name: "iPhone (Валерия) Steps"
+  - id: sensor.iphone_valeriia_storage
+    name: "iPhone (Валерия) Storage"
   - id: sensor.living_room_program_progress
     name: "Program progress"
     area: living_room

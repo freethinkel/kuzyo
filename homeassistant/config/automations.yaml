@@ -11,17 +11,23 @@
         entities: [climate.living_room, climate.bedroom, climate.home_office]
         hvac_mode: "off"
 
+# On anyone coming home rather than on the house going from empty: an iPhone
+# that misses its zone exit keeps the house "occupied" all day.
 - id: ac_cool_on_arrival
   alias: Пришли домой в жару, гостиная охлаждается
   triggers:
     - trigger: state
-      entity_id: zone.home
-      from: "0"
+      entity_id: [person.egor, person.valeriia]
+      to: home
+      not_from: [unavailable, unknown]
   conditions:
     - condition: numeric_state
       entity_id: weather.forecast_home
       attribute: temperature
       above: 28
+    - condition: state
+      entity_id: climate.living_room
+      state: "off"
   actions:
     - action: script.ac_set
       data:
