@@ -304,6 +304,12 @@
         mode: "0600"
       no_log: true
 
+    # The App Store reviewers' Collie demo runs as the user collie-demo
+    # (README); collie-server unpacks its voice models with tar -j.
+    - name: bzip2 for collie-server's models
+      ansible.builtin.apt:
+        name: bzip2
+
     - name: Start the Collie relay
       ansible.builtin.command: docker compose up -d
       args:

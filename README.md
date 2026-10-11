@@ -57,6 +57,11 @@ Everything goes through the `edge` stack on the host (`edge/`):
   `DOCKER_HOST=ssh://kuzyo docker build --network host -f relay/deploy/Dockerfile -t collie-relay:latest desktop`,
   then `docker compose up -d` in `/srv/collie-relay`. Pushes need the APNs
   key in `/srv/collie-relay/secrets/apns.p8` and its ids in `.env`.
+- The Collie demo for App Store review is collie-server as the user
+  `collie-demo` (a systemd user unit, lingering), joined to the relay. It
+  has no agent sources and every action off, so a caller only talks; it
+  answers through that user's Claude Code login. Its ports (7980–7982,
+  7990) stay clear of the relay's.
 - `kuzyo.local` works on the LAN through avahi.
 - **AdGuard Home** is the DNS server with ad blocking, on port 53 of
   `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.
