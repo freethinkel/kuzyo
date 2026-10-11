@@ -1,0 +1,21 @@
+# Both names come from cloudflared (edge/cloudflared.yml) over plain HTTP on loopback; TLS ends at Cloudflare.
+http://collie.freethinkel.dev:8102 {
+	bind 127.0.0.1
+	root * /srv/site
+	file_server
+}
+
+# The relay rate-limits by the client's address, which only Cloudflare's Cf-Connecting-Ip carries here; a
+# client's own X-Collie-Client-Ip is overwritten.
+http://relay.freethinkel.dev:8102 {
+	bind 127.0.0.1
+	@relay path /register /d/*
+	handle @relay {
+		reverse_proxy localhost:8091 {
+			header_up X-Collie-Client-Ip {http.request.header.Cf-Connecting-Ip}
+		}
+	}
+	handle {
+		reverse_proxy localhost:7880
+	}
+}

@@ -12,6 +12,7 @@ container's environment does come from there, like any other dev box.
 Debian 13 host    Incus, Tailscale, SSH, Home Assistant in Docker
 ├── apps          container with Docker: Immich and other compose stacks
 ├── dev           container for development over SSH, set up by ../ansible
+├── pets          container with Docker: public pet projects (pets/)
 └── ...           throwaway containers and VMs
 ```
 
@@ -45,23 +46,36 @@ Everything goes through the `edge` stack on the host (`edge/`):
   public name also needs a proxied CNAME to `<tunnel id>.cfargotunnel.com`.
   Cloudflare caps a request at 100 MB, so big video uploads have to go over
   the LAN name. Turn on automatic URL switching in the Immich app.
-  `collie.freethinkel.dev` is a static site: Caddy serves `/srv/sites/collie`
-  on `127.0.0.1:8090`, and the Collie repo uploads it with `make deploy-site`.
-- `relay.freethinkel.dev` is Collie's shared relay (`collie-relay/`):
-  livekit-server and collie-relay on the host network. Its HTTPS goes
-  through the tunnel to Caddy on `127.0.0.1:8092`, which passes Cloudflare's
-  `Cf-Connecting-Ip` on as the client address. Call media cannot go through
-  the tunnel (no UDP): the router forwards `7881/tcp` and `7882/udp` to
-  `192.168.1.243`, and LiveKit finds the public address over STUN. The
-  `collie-relay` image is built from the Collie repo, on kuzyo itself:
-  `DOCKER_HOST=ssh://kuzyo docker build --network host -f relay/deploy/Dockerfile -t collie-relay:latest desktop`,
-  then `docker compose up -d` in `/srv/collie-relay`. Pushes need the APNs
-  key in `/srv/collie-relay/secrets/apns.p8` and its ids in `.env`.
-- The Collie demo for App Store review is collie-server as the user
-  `collie-demo` (a systemd user unit, lingering), joined to the relay. It
-  has no agent sources and every action off, so a caller only talks; it
-  answers through that user's Claude Code login. Its ports (7980–7982,
-  7990) stay clear of the relay's.
+- **Pet projects** (`pets/<name>/compose.yml`, listed in `pets` in
+  `site.yml`) run in the `pets` container, apart from Immich since they face
+  the internet. Each lives in `/srv/pets/<name>` (the same path on the host
+  and in `pets`), is published on a host loopback port and goes out through
+  the tunnel. Their repos deploy by rsync to `kuzyo:/srv/pets/<name>`, then
+  `ssh kuzyo incus exec pets -- docker compose --project-directory /srv/pets/<name> up -d`.
+  The nightly backup takes the whole of `/srv/pets`.
+  - `phocus.freethinkel.dev` (`8100`) and `fmc.freethinkel.dev` (`8101`,
+    with Caddy for the SPA in `www`) are PocketBase. `.env`, `pb_data` (and
+    fmc's `watchfaces`) exist only there. They moved from DigitalOcean in
+    October 2026.
+  - `collie.freethinkel.dev` and `relay.freethinkel.dev` share Caddy on
+    `8102`: the landing page in `site/` (the Collie repo's
+    `make deploy-site`), and Collie's shared relay, livekit-server and
+    collie-relay. Caddy passes Cloudflare's `Cf-Connecting-Ip` on as the
+    client address. Call media cannot go through the tunnel (no UDP): the
+    router forwards `7881/tcp` and `7882/udp` to `192.168.1.243`, the host
+    DNATs them to `pets` (`10.45.1.49`, fixed), and LiveKit finds the public
+    address over STUN. The `collie-relay` image is built from the Collie
+    repo on the host's Docker, then loaded into `pets`:
+    `DOCKER_HOST=ssh://kuzyo docker build --network host -f relay/deploy/Dockerfile -t collie-relay:latest desktop`,
+    `ssh kuzyo 'docker save collie-relay:latest | incus exec pets -- docker load'`,
+    then `up -d` as above. Pushes need the APNs key in
+    `/srv/pets/collie/secrets/apns.p8` and its ids in `.env`.
+  - The Collie demo for App Store review is collie-server in `pets` as the
+    user `collie-demo` (uid 1001, a systemd user unit, lingering), joined to
+    the relay. It has no agent sources and every action off, so a caller
+    only talks; it answers through that user's Claude Code login
+    (`incus exec pets -- su - collie-demo`). Its ports (7980–7982, 7990)
+    stay clear of the relay's.
 - `kuzyo.local` works on the LAN through avahi.
 - **AdGuard Home** is the DNS server with ad blocking, on port 53 of
   `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.
@@ -83,8 +97,8 @@ Tailscale reach port 445. One address for home and away:
 away it goes over Tailscale, since kuzyo advertises `192.168.1.0/24` as a
 subnet route (approved once in the Tailscale admin console).
 
-Every night at 04:00 `kuzyo-backup` puts the Immich database and
-`/srv/homeassistant` into a restic repo at `/srv/files/backup`, password
+Every night at 04:00 `kuzyo-backup` puts the Immich database,
+`/srv/homeassistant` and `/srv/pets` into a restic repo at `/srv/files/backup`, password
 `RESTIC_PASSWORD` in `.env`. Photos are not backed up. To look inside:
 `restic -r /srv/files/backup -p /root/.restic-password snapshots`.
 

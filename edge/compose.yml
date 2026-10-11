@@ -13,8 +13,6 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy-data:/data
-      # Static sites, put there by their own repos (collie: make deploy-site).
-      - /srv/sites:/srv/sites:ro
     restart: unless-stopped
 
   # Publishes the hostnames in cloudflared.yml to the internet.

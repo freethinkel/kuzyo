@@ -1,0 +1,36 @@
+# fmc.freethinkel.dev, through the tunnel. pb_hooks, pb_migrations, the
+# Caddyfile and pocketbase.Dockerfile come from the fmc_pocketbase repo, www
+# from fmc_frontend; .env, pb_data and watchfaces live only here.
+name: fmc
+
+services:
+  pocketbase:
+    build:
+      context: .
+      dockerfile: pocketbase.Dockerfile
+      args:
+        - PB_VERSION=0.39.8
+    container_name: fmc-pocketbase
+    restart: unless-stopped
+    volumes:
+      - ./pb_data:/app/pb_data
+      - ./pb_migrations:/app/pb_migrations
+      - ./pb_hooks:/app/pb_hooks
+      - ./watchfaces:/watchfaces:ro
+    env_file: .env
+
+  # The repo's own Caddyfile, on plain HTTP: TLS ends at Cloudflare.
+  caddy:
+    image: caddy:2-alpine
+    container_name: fmc-caddy
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DOMAIN_URL: "http://:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv/www:ro
+    ports:
+      - "127.0.0.1:8101:80"
+    depends_on:
+      - pocketbase

@@ -1,10 +1,21 @@
-# Collie's shared relay (relay.freethinkel.dev): livekit-server and collie-relay on the host network, like Home
-# Assistant, since WebRTC media needs UDP on the host's own address. HTTPS comes through the edge: cloudflared →
-# Caddy on 127.0.0.1:8092 → collie-relay on 8091 and LiveKit's signaling on 7880 (edge/Caddyfile). The media ports,
-# 7881/tcp and 7882/udp, are forwarded by the router. The collie-relay image is built from the Collie repo (README).
-# Values come from .env (site.yml writes it); the relay's limits keep their defaults from the Collie repo's
-# relay/deploy/compose.yaml unless set there.
+# collie.freethinkel.dev, the landing page in site/ (the Collie repo's make deploy-site), and
+# relay.freethinkel.dev, Collie's shared relay: livekit-server and collie-relay. Caddy takes both names from the
+# tunnel on 127.0.0.1:8102. Everything is on the pets container's own network, since WebRTC media needs UDP on
+# its own address: the host passes 7881/tcp and 7882/udp on to pets (site.yml), the router forwards them to the
+# host. The collie-relay image is built from the Collie repo (README). Values come from .env (site.yml writes it);
+# the relay's limits keep their defaults from the Collie repo's relay/deploy/compose.yaml unless set here.
+name: collie
+
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: collie-caddy
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
+    restart: unless-stopped
+
   livekit:
     image: livekit/livekit-server:v1.13.7
     container_name: collie-livekit

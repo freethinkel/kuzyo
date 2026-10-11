@@ -1,4 +1,4 @@
-# The relay's LiveKit. Signaling stays on loopback behind the edge; media goes to the home's public address,
+# The relay's LiveKit. Signaling stays on loopback behind Caddy; media goes to the home's public address,
 # found over STUN, on the ports the router forwards.
 port: 7880
 bind_addresses: ["127.0.0.1"]

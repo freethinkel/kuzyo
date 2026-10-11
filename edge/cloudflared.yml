@@ -5,8 +5,13 @@ credentials-file: /etc/cloudflared/credentials.json
 ingress:
   - hostname: photos.freethinkel.dev
     service: http://localhost:2283
+  # Pet projects in the pets container (pets/).
   - hostname: collie.freethinkel.dev
-    service: http://localhost:8090
+    service: http://localhost:8102
   - hostname: relay.freethinkel.dev
-    service: http://localhost:8092
+    service: http://localhost:8102
+  - hostname: phocus.freethinkel.dev
+    service: http://localhost:8100
+  - hostname: fmc.freethinkel.dev
+    service: http://localhost:8101
   - service: http_status:404

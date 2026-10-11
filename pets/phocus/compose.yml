@@ -1,0 +1,18 @@
+# phocus.freethinkel.dev, through the tunnel. pb_hooks, pb_migrations and
+# pb_public come from the phocus-backend repo (make deploy); .env and pb_data
+# live only here. The image is the one its GitHub workflow pushes.
+name: phocus
+
+services:
+  pocketbase:
+    image: ghcr.io/piashyos/phocus-backend/pocketbase:prod
+    container_name: phocus-pocketbase
+    restart: unless-stopped
+    volumes:
+      - ./pb_data:/app/pb_data
+      - ./pb_public:/app/pb_public
+      - ./pb_hooks:/app/pb_hooks
+      - ./pb_migrations:/app/pb_migrations
+    env_file: .env
+    ports:
+      - "127.0.0.1:8100:8090"

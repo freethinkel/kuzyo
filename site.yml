@@ -27,6 +27,12 @@
     stacks:
       - { name: immich, port: 2283 }
       - { name: glance, port: 8080 }
+    # Public pet projects in pets/, run in the pets container, away from
+    # Immich. The port is published on host loopback only, for the tunnel.
+    pets:
+      - { name: phocus, port: 8100 }
+      - { name: fmc, port: 8101 }
+      - { name: collie, port: 8102 }
 
   tasks:
     - name: Upgrade packages
@@ -274,49 +280,6 @@
       register: edge_up
       changed_when: "'Started' in edge_up.stderr or 'Recreated' in edge_up.stderr"
 
-    # Collie's shared relay, published by the edge as relay.freethinkel.dev.
-    # The collie-relay image comes from the Collie repo (README); the APNs key
-    # is put into secrets/ by hand.
-    - name: Collie relay directories
-      ansible.builtin.file:
-        path: "/srv/collie-relay/{{ item.path }}"
-        state: directory
-        mode: "{{ item.mode }}"
-      loop:
-        - { path: "", mode: "0755" }
-        - { path: state, mode: "0700" }
-        - { path: secrets, mode: "0700" }
-
-    - name: Collie relay files
-      ansible.builtin.copy:
-        src: "collie-relay/{{ item }}"
-        dest: "/srv/collie-relay/{{ item }}"
-        mode: "0644"
-      loop: [compose.yml, livekit.yaml]
-
-    - name: Collie relay secrets
-      ansible.builtin.copy:
-        dest: /srv/collie-relay/.env
-        content: |
-          LIVEKIT_API_SECRET={{ collie_relay_livekit_secret }}
-          APNS_KEY_ID={{ collie_relay_apns_key_id }}
-          APNS_TEAM_ID={{ collie_relay_apns_team_id }}
-        mode: "0600"
-      no_log: true
-
-    # The App Store reviewers' Collie demo runs as the user collie-demo
-    # (README); collie-server unpacks its voice models with tar -j.
-    - name: bzip2 for collie-server's models
-      ansible.builtin.apt:
-        name: bzip2
-
-    - name: Start the Collie relay
-      ansible.builtin.command: docker compose up -d
-      args:
-        chdir: /srv/collie-relay
-      register: relay_up
-      changed_when: "'Started' in relay_up.stderr or 'Recreated' in relay_up.stderr"
-
     # TUI for Incus, lazydocker-style. Run as root on the host: lazyincus
     - name: Download lazyincus {{ lazyincus_version }}
       ansible.builtin.get_url:
@@ -377,7 +340,7 @@
         -c security.syscalls.intercept.setxattr=true
       args:
         creates: "/var/lib/incus/storage-pools/default/containers/{{ item }}"
-      loop: [apps, dev, fishruff-playground]
+      loop: [apps, dev, fishruff-playground, pets]
       tags: playground
 
     - name: Mount app data into apps
@@ -388,7 +351,7 @@
 
     - name: Start guests with the host
       ansible.builtin.command: "incus config set {{ item }} boot.autostart=true"
-      loop: [apps, dev, fishruff-playground]
+      loop: [apps, dev, fishruff-playground, pets]
       changed_when: false
       tags: playground
 
@@ -425,6 +388,95 @@
         apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compose'
       args:
         creates: /var/lib/incus/storage-pools/default/containers/apps/rootfs/usr/bin/docker
+
+    # Each project is a directory /srv/pets/<name>, the same path on the host
+    # and in pets. Its repo deploys code there with rsync to kuzyo; data and
+    # .env stay put. A subvolume, so the backup can snapshot it.
+    - name: Btrfs subvolume for pets
+      ansible.builtin.command: btrfs subvolume create /srv/pets
+      args:
+        creates: /srv/pets
+
+    - name: Pets directories
+      ansible.builtin.file:
+        path: "/srv/pets/{{ item.name }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ pets }}"
+
+    - name: Mount pets into pets
+      ansible.builtin.command: incus config device add pets srv disk source=/srv/pets path=/srv/pets shift=true
+      register: pets_mount
+      changed_when: pets_mount.rc == 0
+      failed_when: pets_mount.rc != 0 and 'already exists' not in pets_mount.stderr
+
+    - name: Publish pets ports on host loopback
+      ansible.builtin.command: >-
+        incus config device add pets port-{{ item.port }} proxy
+        listen=tcp:127.0.0.1:{{ item.port }} connect=tcp:127.0.0.1:{{ item.port }}
+      loop: "{{ pets }}"
+      register: pets_device
+      changed_when: pets_device.rc == 0
+      failed_when: pets_device.rc != 0 and 'already exists' not in pets_device.stderr
+
+    - name: Install Docker in pets
+      ansible.builtin.command: >-
+        incus exec pets -- sh -c 'until getent hosts deb.debian.org >/dev/null; do sleep 1; done;
+        apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compose'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/pets/rootfs/usr/bin/docker
+
+    # Collie's relay: WebRTC media goes straight to pets, so LiveKit sees the
+    # callers' own addresses. NAT mode needs a fixed address on the bridge
+    # and a real listen address: the Wi-Fi one, where the router forwards.
+    - name: Fixed address for pets
+      ansible.builtin.command: incus config device override pets eth0 ipv4.address=10.45.1.49
+      register: pets_ip
+      changed_when: pets_ip.rc == 0
+      failed_when: pets_ip.rc != 0 and 'already exists' not in pets_ip.stderr
+
+    - name: Collie media ports into pets
+      ansible.builtin.command: "incus config device add pets {{ item }}"
+      loop:
+        - media-tcp proxy nat=true listen=tcp:192.168.1.243:7881 connect=tcp:10.45.1.49:7881
+        - media-udp proxy nat=true listen=udp:192.168.1.243:7882 connect=udp:10.45.1.49:7882
+      register: media_device
+      changed_when: media_device.rc == 0
+      failed_when: media_device.rc != 0 and 'already exists' not in media_device.stderr
+
+    - name: Collie directories
+      ansible.builtin.file:
+        path: "/srv/pets/collie/{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: state, mode: "0700" }
+        - { path: secrets, mode: "0700" }
+        - { path: site, mode: "0755" }
+
+    - name: Collie files
+      ansible.builtin.copy:
+        src: "pets/collie/{{ item }}"
+        dest: "/srv/pets/collie/{{ item }}"
+        mode: "0644"
+      loop: [Caddyfile, livekit.yaml]
+
+    - name: Collie secrets
+      ansible.builtin.copy:
+        dest: /srv/pets/collie/.env
+        content: |
+          LIVEKIT_API_SECRET={{ collie_relay_livekit_secret }}
+          APNS_KEY_ID={{ collie_relay_apns_key_id }}
+          APNS_TEAM_ID={{ collie_relay_apns_team_id }}
+        mode: "0600"
+      no_log: true
+
+    # The App Store reviewers' Collie demo runs in pets as the user
+    # collie-demo (README); collie-server unpacks its voice models with tar -j.
+    - name: bzip2 for collie-server's models
+      ansible.builtin.command: incus exec pets -- sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y -q bzip2'
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/pets/rootfs/usr/bin/bzip2
 
     # ../ansible reaches dev over SSH, jumping through this host.
     - name: SSH server in dev
@@ -712,6 +764,22 @@
       register: stack_up
       changed_when: "'Started' in stack_up.stderr or 'Recreated' in stack_up.stderr"
 
+    - name: Pets compose files
+      ansible.builtin.copy:
+        src: "pets/{{ item.name }}/compose.yml"
+        dest: "/srv/pets/{{ item.name }}/compose.yml"
+        mode: "0644"
+      loop: "{{ pets }}"
+
+    # Until a project's .env and code are moved in (README), there is nothing to start.
+    - name: Start pets
+      ansible.builtin.command: "incus exec pets -- docker compose --project-directory /srv/pets/{{ item.name }} up -d"
+      args:
+        removes: "/srv/pets/{{ item.name }}/.env"
+      loop: "{{ pets }}"
+      register: pets_up
+      changed_when: "'Started' in pets_up.stderr or 'Recreated' in pets_up.stderr"
+
     # Nightly restic backup of what this repo cannot rebuild: the Immich
     # database and Home Assistant's state. Photos are not in it. The repo sits
     # on the USB disk, so it outlives the NVMe, not the whole laptop.
@@ -740,6 +808,10 @@
           trap 'btrfs -q subvolume delete /srv/homeassistant-backup' EXIT
           btrfs -q subvolume snapshot -r /srv/homeassistant /srv/homeassistant-backup
           restic backup -q --tag homeassistant /srv/homeassistant-backup
+          # PocketBase keeps SQLite in pb_data; same read-only snapshot.
+          trap 'btrfs -q subvolume delete /srv/homeassistant-backup /srv/pets-backup' EXIT
+          btrfs -q subvolume snapshot -r /srv/pets /srv/pets-backup
+          restic backup -q --tag pets --exclude 'pb_data.bak-*' --exclude node_modules /srv/pets-backup
           restic backup -q --tag adguard /srv/edge/adguard/conf
           restic forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 
@@ -760,7 +832,7 @@
         units:
           service: |
             [Unit]
-            Description=Back up the Immich database and Home Assistant
+            Description=Back up the Immich database, Home Assistant and pets
             RequiresMountsFor=/srv/files
 
             [Service]
