@@ -1,0 +1,10 @@
+# The relay's LiveKit. Signaling stays on loopback behind the edge; media goes to the home's public address,
+# found over STUN, on the ports the router forwards.
+port: 7880
+bind_addresses: ["127.0.0.1"]
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true
+logging:
+  level: info

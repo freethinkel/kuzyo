@@ -7,4 +7,6 @@ ingress:
     service: http://localhost:2283
   - hostname: collie.freethinkel.dev
     service: http://localhost:8090
+  - hostname: relay.freethinkel.dev
+    service: http://localhost:8092
   - service: http_status:404

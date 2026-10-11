@@ -19,6 +19,9 @@
     ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
     restic_password: "{{ lookup('ansible.builtin.ini', 'RESTIC_PASSWORD', file='.env', type='properties') }}"
     adguard_password: "{{ lookup('ansible.builtin.ini', 'ADGUARD_PASSWORD', file='.env', type='properties') }}"
+    collie_relay_livekit_secret: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_LIVEKIT_SECRET', file='.env', type='properties') }}"
+    collie_relay_apns_key_id: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_APNS_KEY_ID', file='.env', type='properties') }}"
+    collie_relay_apns_team_id: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_APNS_TEAM_ID', file='.env', type='properties') }}"
     # Compose stacks in apps/, run in the apps container. The port is
     # published on the host, so LAN and Tailscale reach it.
     stacks:
@@ -270,6 +273,43 @@
         chdir: /srv/edge
       register: edge_up
       changed_when: "'Started' in edge_up.stderr or 'Recreated' in edge_up.stderr"
+
+    # Collie's shared relay, published by the edge as relay.freethinkel.dev.
+    # The collie-relay image comes from the Collie repo (README); the APNs key
+    # is put into secrets/ by hand.
+    - name: Collie relay directories
+      ansible.builtin.file:
+        path: "/srv/collie-relay/{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "", mode: "0755" }
+        - { path: state, mode: "0700" }
+        - { path: secrets, mode: "0700" }
+
+    - name: Collie relay files
+      ansible.builtin.copy:
+        src: "collie-relay/{{ item }}"
+        dest: "/srv/collie-relay/{{ item }}"
+        mode: "0644"
+      loop: [compose.yml, livekit.yaml]
+
+    - name: Collie relay secrets
+      ansible.builtin.copy:
+        dest: /srv/collie-relay/.env
+        content: |
+          LIVEKIT_API_SECRET={{ collie_relay_livekit_secret }}
+          APNS_KEY_ID={{ collie_relay_apns_key_id }}
+          APNS_TEAM_ID={{ collie_relay_apns_team_id }}
+        mode: "0600"
+      no_log: true
+
+    - name: Start the Collie relay
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: /srv/collie-relay
+      register: relay_up
+      changed_when: "'Started' in relay_up.stderr or 'Recreated' in relay_up.stderr"
 
     # TUI for Incus, lazydocker-style. Run as root on the host: lazyincus
     - name: Download lazyincus {{ lazyincus_version }}

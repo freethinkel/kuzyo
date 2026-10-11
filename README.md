@@ -47,6 +47,16 @@ Everything goes through the `edge` stack on the host (`edge/`):
   the LAN name. Turn on automatic URL switching in the Immich app.
   `collie.freethinkel.dev` is a static site: Caddy serves `/srv/sites/collie`
   on `127.0.0.1:8090`, and the Collie repo uploads it with `make deploy-site`.
+- `relay.freethinkel.dev` is Collie's shared relay (`collie-relay/`):
+  livekit-server and collie-relay on the host network. Its HTTPS goes
+  through the tunnel to Caddy on `127.0.0.1:8092`, which passes Cloudflare's
+  `Cf-Connecting-Ip` on as the client address. Call media cannot go through
+  the tunnel (no UDP): the router forwards `7881/tcp` and `7882/udp` to
+  `192.168.1.243`, and LiveKit finds the public address over STUN. The
+  `collie-relay` image is built from the Collie repo, on kuzyo itself:
+  `DOCKER_HOST=ssh://kuzyo docker build --network host -f relay/deploy/Dockerfile -t collie-relay:latest desktop`,
+  then `docker compose up -d` in `/srv/collie-relay`. Pushes need the APNs
+  key in `/srv/collie-relay/secrets/apns.p8` and its ids in `.env`.
 - `kuzyo.local` works on the LAN through avahi.
 - **AdGuard Home** is the DNS server with ad blocking, on port 53 of
   `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.

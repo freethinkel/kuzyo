@@ -32,6 +32,22 @@ http://:8090 {
 	file_server
 }
 
+# relay.freethinkel.dev: Collie's shared relay (collie-relay/), on loopback for cloudflared.yml. The relay
+# rate-limits by the client's address, which only Cloudflare's Cf-Connecting-Ip carries here; a client's own
+# X-Collie-Client-Ip is overwritten.
+http://:8092 {
+	bind 127.0.0.1
+	@relay path /register /d/*
+	handle @relay {
+		reverse_proxy localhost:8091 {
+			header_up X-Collie-Client-Ip {http.request.header.Cf-Connecting-Ip}
+		}
+	}
+	handle {
+		reverse_proxy localhost:7880
+	}
+}
+
 # Start page, Glance in the apps container.
 home.freethinkel.dev {
 	reverse_proxy localhost:8080
