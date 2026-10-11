@@ -447,7 +447,7 @@
       ansible.builtin.command: >-
         incus exec fishruff-playground -- sh -c 'until getent hosts deb.debian.org >/dev/null; do sleep 1; done;
         apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q openssh-server sudo curl git
-        zsh zsh-autosuggestions zsh-syntax-highlighting fzf starship nodejs npm build-essential &&
+        zsh zsh-autosuggestions zsh-syntax-highlighting fzf starship build-essential &&
         useradd -m -s /usr/bin/zsh -G sudo fishruff &&
         echo "fishruff ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/fishruff'
       args:
@@ -460,6 +460,28 @@
         'curl -fsSL https://herdr.dev/install.sh | sh && curl -fsSL https://claude.ai/install.sh | bash'
       args:
         creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/home/fishruff/.local/bin/claude
+      tags: playground
+
+    # Same node as on pocketserver. nvm loads from ~/.zshenv, not ~/.zshrc:
+    # fishruff's .zshrc turns on EXTENDED_GLOB, which breaks nvm's alias
+    # lookup, and zshenv runs before it (and for non-interactive ssh too).
+    # ponytail: `nvm use` typed in a shell still runs under EXTENDED_GLOB;
+    # wrap nvm in `setopt localoptions no_extended_glob` if that bites.
+    - name: nvm and node for fishruff
+      ansible.builtin.command:
+        cmd: incus exec fishruff-playground -- su - fishruff -c 'bash -s'
+        stdin: |
+          set -e
+          curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | PROFILE=/dev/null bash
+          . ~/.nvm/nvm.sh
+          nvm install 22.23.2
+          nvm alias default 22.23.2
+          cat >> ~/.zshenv <<'EOF'
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          EOF
+      args:
+        creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/home/fishruff/.nvm/versions/node/v22.23.2/bin/node
       tags: playground
 
     # fishruff reaches it over their own tailnet. Logging in is a one-off by
