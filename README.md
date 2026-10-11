@@ -45,6 +45,8 @@ Everything goes through the `edge` stack on the host (`edge/`):
   public name also needs a proxied CNAME to `<tunnel id>.cfargotunnel.com`.
   Cloudflare caps a request at 100 MB, so big video uploads have to go over
   the LAN name. Turn on automatic URL switching in the Immich app.
+  `collie.freethinkel.dev` is a static site: Caddy serves `/srv/sites/collie`
+  on `127.0.0.1:8090`, and the Collie repo uploads it with `make deploy-site`.
 - `kuzyo.local` works on the LAN through avahi.
 - **AdGuard Home** is the DNS server with ad blocking, on port 53 of
   `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.

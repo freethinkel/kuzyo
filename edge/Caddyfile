@@ -24,6 +24,14 @@
 	}
 }
 
+# Static sites for cloudflared.yml, on loopback only.
+# collie.freethinkel.dev: the Collie landing page, from the Collie repo's make deploy-site.
+http://:8090 {
+	bind 127.0.0.1
+	root * /srv/sites/collie
+	file_server
+}
+
 # Start page, Glance in the apps container.
 home.freethinkel.dev {
 	reverse_proxy localhost:8080
