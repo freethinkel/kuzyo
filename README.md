@@ -70,6 +70,11 @@ Everything goes through the `edge` stack on the host (`edge/`):
     `ssh kuzyo 'docker save collie-relay:latest | incus exec pets -- docker load'`,
     then `up -d` as above. Pushes need the APNs key in
     `/srv/pets/collie/secrets/apns.p8` and its ids in `.env`.
+  - `tg-digest-bot` is @chatovyzhimalka_bot, a Telegram bot that sums up and
+    answers in group chats through `claude -p`. It only polls Telegram, so it
+    has no port and no tunnel. Its repo deploys with `make deploy`; `.env`
+    (with `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`) and
+    `data/history.db` exist only there.
   - The Collie demo for App Store review is collie-server in `pets` as the
     user `collie-demo` (uid 1001, a systemd user unit, lingering), joined to
     the relay. It has no agent sources and every action off, so a caller
@@ -98,7 +103,7 @@ away it goes over Tailscale, since kuzyo advertises `192.168.1.0/24` as a
 subnet route (approved once in the Tailscale admin console).
 
 Every night at 04:00 `kuzyo-backup` puts the Immich database,
-`/srv/homeassistant` and `/srv/pets` into a restic repo at `/srv/files/backup`, password
+`/srv/homeassistant`, `/srv/pets` and Kenos' `Finances` into a restic repo at `/srv/files/backup`, password
 `RESTIC_PASSWORD` in `.env`. Photos are not backed up. To look inside:
 `restic -r /srv/files/backup -p /root/.restic-password snapshots`.
 

@@ -28,11 +28,13 @@
       - { name: immich, port: 2283 }
       - { name: glance, port: 8080 }
     # Public pet projects in pets/, run in the pets container, away from
-    # Immich. The port is published on host loopback only, for the tunnel.
+    # Immich. The port is published on host loopback only, for the tunnel;
+    # a project without a port only goes out.
     pets:
       - { name: phocus, port: 8100 }
       - { name: fmc, port: 8101 }
       - { name: collie, port: 8102 }
+      - { name: tg-digest-bot }
 
   tasks:
     - name: Upgrade packages
@@ -415,6 +417,7 @@
         incus config device add pets port-{{ item.port }} proxy
         listen=tcp:127.0.0.1:{{ item.port }} connect=tcp:127.0.0.1:{{ item.port }}
       loop: "{{ pets }}"
+      when: item.port is defined
       register: pets_device
       changed_when: pets_device.rc == 0
       failed_when: pets_device.rc != 0 and 'already exists' not in pets_device.stderr
@@ -781,7 +784,7 @@
       changed_when: "'Started' in pets_up.stderr or 'Recreated' in pets_up.stderr"
 
     # Nightly restic backup of what this repo cannot rebuild: the Immich
-    # database and Home Assistant's state. Photos are not in it. The repo sits
+    # database, Home Assistant's state and Kenos' Finances. Photos are not in it. The repo sits
     # on the USB disk, so it outlives the NVMe, not the whole laptop.
     - name: Install restic
       ansible.builtin.apt:
@@ -813,6 +816,7 @@
           btrfs -q subvolume snapshot -r /srv/pets /srv/pets-backup
           restic backup -q --tag pets --exclude 'pb_data.bak-*' --exclude node_modules /srv/pets-backup
           restic backup -q --tag adguard /srv/edge/adguard/conf
+          restic backup -q --tag finances /srv/files/shared-files/Finances
           restic forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 
     - name: Restic repository

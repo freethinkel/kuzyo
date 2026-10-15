@@ -1,0 +1,16 @@
+# @chatovyzhimalka_bot, the Telegram chat digest bot. Outbound only (long polling), so no port and no tunnel.
+# Code comes from the tg-digest-bot repo (make deploy). .env (TELEGRAM_TOKEN, ALLOWED_*, CLAUDE_CODE_OAUTH_TOKEN from
+# `claude setup-token`) and data/ with history.db live only here; data/ belongs to uid 1000, the image's node user.
+name: tg-digest-bot
+
+services:
+  bot:
+    build: .
+    image: tg-digest-bot:latest
+    container_name: tg-digest-bot
+    env_file: .env
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
