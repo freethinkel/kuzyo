@@ -106,6 +106,16 @@ Every night at 04:00 `kuzyo-backup` puts the Immich database,
 `/srv/homeassistant`, `/srv/pets` and Kenos' `Finances` into a restic repo at `/srv/files/backup`, password
 `RESTIC_PASSWORD` in `.env`. Photos are not backed up. To look inside:
 `restic -r /srv/files/backup -p /root/.restic-password snapshots`.
+That repo shares the USB disk with Kenos, so the script then copies it to
+the R2 bucket `kuzyo-backup`, once `R2_ACCESS_KEY_ID` and
+`R2_SECRET_ACCESS_KEY` are in `.env` (`.env.sample` says how).
+
+Whatever breaks while nobody looks comes to the phone as a push through
+Home Assistant (`kuzyo-alert`): a failed backup or monthly btrfs scrub of
+`/srv`, a disk smartd does not like. A dead box sends nothing. Debian
+security updates install themselves nightly on the host, `apps` and `pets`;
+a full playbook run also pulls newer images for edge, HA and the stacks.
+On battery, the box powers itself off at 10% and comes back with AC.
 
 Compose stacks for the `apps` container live in `apps/<name>/`. Add each one
 to `stacks` in `site.yml` with the port to publish on the host.

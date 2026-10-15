@@ -18,6 +18,8 @@
     eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
     ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
     restic_password: "{{ lookup('ansible.builtin.ini', 'RESTIC_PASSWORD', file='.env', type='properties') }}"
+    r2_access_key_id: "{{ lookup('ansible.builtin.ini', 'R2_ACCESS_KEY_ID', file='.env', type='properties') }}"
+    r2_secret_access_key: "{{ lookup('ansible.builtin.ini', 'R2_SECRET_ACCESS_KEY', file='.env', type='properties') }}"
     adguard_password: "{{ lookup('ansible.builtin.ini', 'ADGUARD_PASSWORD', file='.env', type='properties') }}"
     collie_relay_livekit_secret: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_LIVEKIT_SECRET', file='.env', type='properties') }}"
     collie_relay_apns_key_id: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_APNS_KEY_ID', file='.env', type='properties') }}"
@@ -43,6 +45,20 @@
         update_cache: true
         cache_valid_time: 3600
       tags: upgrade
+
+    # Debian security updates every night between playbook runs; the guests
+    # get the same below. No automatic reboots.
+    - name: Install unattended-upgrades
+      ansible.builtin.apt:
+        name: unattended-upgrades
+
+    - name: Turn unattended-upgrades on
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        mode: "0644"
 
     # Remote access from anywhere without port forwarding. Logging in is a
     # one-off by hand: tailscale up --hostname=kuzyo
@@ -275,6 +291,14 @@
         mode: "0600"
       no_log: true
 
+    # up -d never pulls, so :latest would stay whatever came first.
+    - name: Pull edge images
+      ansible.builtin.shell: docker compose pull -q --ignore-buildable && docker compose build -q --pull
+      args:
+        chdir: /srv/edge
+      changed_when: false
+      tags: upgrade
+
     - name: Start edge
       ansible.builtin.command: docker compose up -d --build
       args:
@@ -428,6 +452,17 @@
         apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compose'
       args:
         creates: /var/lib/incus/storage-pools/default/containers/pets/rootfs/usr/bin/docker
+
+    # Same nightly security updates as the host; pets faces the internet.
+    # dev is ../ansible's.
+    - name: unattended-upgrades in apps and pets
+      ansible.builtin.command: >-
+        incus exec {{ item }} -- sh -c 'apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q unattended-upgrades &&
+        printf "APT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n"
+        > /etc/apt/apt.conf.d/20auto-upgrades'
+      args:
+        creates: "/var/lib/incus/storage-pools/default/containers/{{ item }}/rootfs/etc/apt/apt.conf.d/20auto-upgrades"
+      loop: [apps, pets]
 
     # Collie's relay: WebRTC media goes straight to pets, so LiveKit sees the
     # callers' own addresses. NAT mode needs a fixed address on the bridge
@@ -705,6 +740,13 @@
         label: "{{ item.key }}"
       no_log: true
 
+    - name: Pull Home Assistant
+      ansible.builtin.command: docker compose pull -q
+      args:
+        chdir: /srv/homeassistant
+      changed_when: false
+      tags: upgrade
+
     - name: Start Home Assistant
       ansible.builtin.command: docker compose up -d
       args:
@@ -761,6 +803,13 @@
       ansible.builtin.command: chattr +C /srv/data/immich/postgres
       changed_when: false
 
+    # Pets are left alone: their repos deploy their own images.
+    - name: Pull stack images
+      ansible.builtin.command: "incus exec apps -- docker compose --project-directory /stacks/{{ item.name }} pull -q"
+      loop: "{{ stacks }}"
+      changed_when: false
+      tags: upgrade
+
     - name: Start stacks
       ansible.builtin.command: "incus exec apps -- docker compose --project-directory /stacks/{{ item.name }} up -d"
       loop: "{{ stacks }}"
@@ -783,9 +832,43 @@
       register: pets_up
       changed_when: "'Started' in pets_up.stderr or 'Recreated' in pets_up.stderr"
 
+    # Pushes to the phone through Home Assistant's app, for whatever breaks
+    # while nobody looks: a failed timer job, a disk smartd does not like.
+    # ponytail: HA runs on this very box, so a dead box or a dead internet
+    # sends nothing; an outside dead man's switch (healthchecks.io) catches that.
+    - name: Home Assistant token for alerts
+      ansible.builtin.copy:
+        dest: /root/.ha-token
+        content: "{{ ha_token }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Alert script
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/kuzyo-alert
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          # kuzyo-alert <text>: a push to the phone.
+          exec curl -fsS -m 10 -o /dev/null -H "Authorization: Bearer $(cat /root/.ha-token)" \
+            -H 'Content-Type: application/json' \
+            -d "$(python3 -c 'import json, sys; print(json.dumps({"title": "kuzyo", "message": sys.argv[1]}))' "$*")" \
+            http://localhost:8123/api/services/notify/mobile_app_iphone_egor
+
+    # smartd-runner runs everything in run.d; 10mail next to it mails root,
+    # which nobody reads.
+    - name: smartd alerts to the phone
+      ansible.builtin.copy:
+        dest: /etc/smartmontools/run.d/20kuzyo-alert
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exec /usr/local/sbin/kuzyo-alert "smartd: $SMARTD_MESSAGE"
+
     # Nightly restic backup of what this repo cannot rebuild: the Immich
-    # database, Home Assistant's state and Kenos' Finances. Photos are not in it. The repo sits
-    # on the USB disk, so it outlives the NVMe, not the whole laptop.
+    # database, Home Assistant's state, pets and Kenos' Finances. Photos are
+    # not in it. The repo sits on the USB disk, so it outlives the NVMe; the
+    # copy in Cloudflare R2 outlives the USB disk too.
     - name: Install restic
       ansible.builtin.apt:
         name: restic
@@ -797,14 +880,19 @@
         mode: "0600"
       no_log: true
 
+    # 0700: it holds the R2 keys.
     - name: Backup script
       ansible.builtin.copy:
         dest: /usr/local/sbin/kuzyo-backup
-        mode: "0755"
+        mode: "0700"
         content: |
           #!/bin/bash
           set -euo pipefail
           export RESTIC_REPOSITORY=/srv/files/backup RESTIC_PASSWORD_FILE=/root/.restic-password
+          # An interrupted run leaves its lock and snapshots behind. unlock
+          # removes only locks of processes that are gone.
+          restic unlock -q
+          btrfs -q subvolume delete /srv/homeassistant-backup /srv/pets-backup 2>/dev/null || true
           incus exec apps -- docker exec immich_postgres pg_dumpall --clean --if-exists -U postgres |
             restic backup -q --tag immich --stdin --stdin-filename immich.sql
           # A read-only snapshot, so the recorder database is not caught mid-write.
@@ -818,15 +906,46 @@
           restic backup -q --tag adguard /srv/edge/adguard/conf
           restic backup -q --tag finances /srv/files/shared-files/Finances
           restic forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+          {% if r2_access_key_id %}
+          # Off-site copy: the repo above shares the USB disk with Finances.
+          export AWS_ACCESS_KEY_ID={{ r2_access_key_id }} AWS_SECRET_ACCESS_KEY={{ r2_secret_access_key }} AWS_DEFAULT_REGION=auto
+          r2=s3:https://{{ cloudflare_account_id }}.r2.cloudflarestorage.com/kuzyo-backup
+          restic -r "$r2" unlock -q
+          restic -r "$r2" copy -q --from-repo /srv/files/backup --from-password-file /root/.restic-password
+          restic -r "$r2" forget -q --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+          {% endif %}
+      no_log: true
 
     - name: Restic repository
       ansible.builtin.command: restic init -r /srv/files/backup -p /root/.restic-password
       args:
         creates: /srv/files/backup/config
 
-    - name: Backup service and timer
+    # Same chunker as the USB repo, so copy deduplicates. The bucket
+    # kuzyo-backup is made by hand in the dashboard (README).
+    - name: Restic repository in R2
+      ansible.builtin.shell: >-
+        restic -r "$R2" cat config >/dev/null 2>&1 ||
+        { restic -r "$R2" init --from-repo /srv/files/backup --from-password-file /root/.restic-password
+        --copy-chunker-params >/dev/null && echo created; }
+      environment:
+        R2: "s3:https://{{ cloudflare_account_id }}.r2.cloudflarestorage.com/kuzyo-backup"
+        RESTIC_PASSWORD_FILE: /root/.restic-password
+        AWS_ACCESS_KEY_ID: "{{ r2_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ r2_secret_access_key }}"
+        AWS_DEFAULT_REGION: auto
+      register: r2_init
+      changed_when: "'created' in r2_init.stdout"
+      when: r2_access_key_id | length > 0
+      no_log: true
+
+    # Timer jobs report failures through kuzyo-alert@. The monthly scrub
+    # reads every block of /srv, so btrfs finds rot before a restore does.
+    # The battery check is the UPS part: a power cut longer than the battery
+    # ends in a clean poweroff at 10%, and the BIOS powers on with AC back.
+    - name: Systemd units for backup, alerts, scrub and battery
       ansible.builtin.copy:
-        dest: "/etc/systemd/system/kuzyo-backup.{{ item.key }}"
+        dest: "/etc/systemd/system/{{ item.key }}"
         content: "{{ item.value }}"
         mode: "0644"
       loop: "{{ units | dict2items }}"
@@ -834,29 +953,68 @@
         label: "{{ item.key }}"
       vars:
         units:
-          service: |
+          kuzyo-alert@.service: |
             [Unit]
-            Description=Back up the Immich database, Home Assistant and pets
+            Description=Push an alert about %i
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/sbin/kuzyo-alert "%i failed, see journalctl -u %i"
+          kuzyo-backup.service: |
+            [Unit]
+            Description=Back up the Immich database, Home Assistant, pets and Finances
             RequiresMountsFor=/srv/files
+            OnFailure=kuzyo-alert@%n.service
 
             [Service]
             Type=oneshot
             Environment=HOME=/root
             ExecStart=/usr/local/sbin/kuzyo-backup
-          timer: |
+          kuzyo-backup.timer: |
             [Timer]
             OnCalendar=04:00
             Persistent=true
 
             [Install]
             WantedBy=timers.target
+          kuzyo-scrub.service: |
+            [Unit]
+            Description=Scrub the btrfs /srv
+            OnFailure=kuzyo-alert@%n.service
 
-    - name: Start the backup timer
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/bin/btrfs scrub start -B /srv
+          kuzyo-scrub.timer: |
+            [Timer]
+            OnCalendar=*-*-01 03:00
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+          kuzyo-battery.service: |
+            [Unit]
+            Description=Power off on a low battery
+
+            [Service]
+            Type=oneshot
+            LogLevelMax=notice
+            ExecStart=/bin/sh -c 'grep -qx Discharging /sys/class/power_supply/BAT0/status && [ $$(cat /sys/class/power_supply/BAT0/capacity) -le 10 ] && systemctl poweroff || true'
+          kuzyo-battery.timer: |
+            [Timer]
+            OnBootSec=2min
+            OnUnitActiveSec=1min
+
+            [Install]
+            WantedBy=timers.target
+
+    - name: Start the timers
       ansible.builtin.systemd_service:
-        name: kuzyo-backup.timer
+        name: "{{ item }}"
         enabled: true
         state: started
         daemon_reload: true
+      loop: [kuzyo-backup.timer, kuzyo-scrub.timer, kuzyo-battery.timer]
 
   handlers:
     # A restart, not caddy reload: copy replaces the file, and a single-file
