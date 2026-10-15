@@ -62,7 +62,10 @@ Everything goes through the `edge` stack on the host (`edge/`):
     `make deploy-site`), and Collie's shared relay, livekit-server and
     collie-relay. Caddy passes Cloudflare's `Cf-Connecting-Ip` on as the
     client address. Call media cannot go through the tunnel (no UDP): the
-    router forwards `7881/tcp` and `7882/udp` to `192.168.1.243`, the host
+    router forwards `7881/tcp` and `7882/udp` to `192.168.1.243` (Virtual
+    Servers in the Cablenet gateway's own page, `http://192.168.1.1`, under
+    the hidden `scvrtsrv.cmd`; forwards made in the Plume app and NAT-PMP
+    mappings never reach the WAN), the host
     DNATs them to `pets` (`10.45.1.49`, fixed), and LiveKit finds the public
     address over STUN. The `collie-relay` image is built from the Collie
     repo on the host's Docker, then loaded into `pets`:
