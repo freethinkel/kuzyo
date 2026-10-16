@@ -36,6 +36,7 @@
       - { name: phocus, port: 8100 }
       - { name: fmc, port: 8101 }
       - { name: collie, port: 8102 }
+      - { name: mochi-relay, port: 8104 }
       - { name: tg-digest-bot }
 
   tasks:

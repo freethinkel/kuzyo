@@ -14,4 +14,6 @@ ingress:
     service: http://localhost:8100
   - hostname: fmc.freethinkel.dev
     service: http://localhost:8101
+  - hostname: mochi.freethinkel.dev
+    service: http://localhost:8104
   - service: http_status:404

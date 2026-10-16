@@ -73,6 +73,13 @@ Everything goes through the `edge` stack on the host (`edge/`):
     `ssh kuzyo 'docker save collie-relay:latest | incus exec pets -- docker load'`,
     then `up -d` as above. Pushes need the APNs key in
     `/srv/pets/collie/secrets/apns.p8` and its ids in `.env`.
+  - `mochi.freethinkel.dev` (`8104`) is mochi's push relay, a Go binary in a
+    distroless container: herdr hosts post agent lists, it sends APNs pushes.
+    It moved from a Cloudflare Worker in October 2026. The mochi repo builds
+    the binary and copies it to `/srv/pets/mochi-relay/mochi-relay`
+    (`server/relay/README.md` there). `secrets/apns.p8` (key `JT9M8A4P4P`)
+    and `state/devices.json` (the app's tokens) exist only there; the WAF
+    rate-limiting rule "mochi relay" on the zone still guards the name.
   - `tg-digest-bot` is @chatovyzhimalka_bot, a Telegram bot that sums up and
     answers in group chats through `claude -p`. It only polls Telegram, so it
     has no port and no tunnel. Its repo deploys with `make deploy`; `.env`

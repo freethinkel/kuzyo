@@ -1,0 +1,23 @@
+# mochi.freethinkel.dev, mochi's push relay: herdr hosts post agent lists, it sends APNs pushes. Listens on
+# 127.0.0.1:8104 for the tunnel. The binary is built and rsynced by the mochi repo (server/relay/README.md);
+# secrets/apns.p8 is the APNs key, state/devices.json the app's tokens. The empty .env only tells site.yml the
+# pet is ready to start.
+name: mochi-relay
+
+services:
+  relay:
+    image: gcr.io/distroless/static-debian12
+    container_name: mochi-relay
+    network_mode: host
+    command: ["/mochi-relay"]
+    environment:
+      MOCHI_RELAY_LISTEN: 127.0.0.1:8104
+      MOCHI_RELAY_STATE: /state/devices.json
+      APNS_KEY_FILE: /secrets/apns.p8
+      APNS_KEY_ID: JT9M8A4P4P
+      APNS_TEAM_ID: Z7PK4B5KU2
+    volumes:
+      - ./mochi-relay:/mochi-relay:ro
+      - ./state:/state
+      - ./secrets:/secrets:ro
+    restart: unless-stopped
