@@ -92,12 +92,6 @@ Everything goes through the `edge` stack on the host (`edge/`):
     (`incus exec pets -- su - collie-demo`). Its ports (7980–7982, 7990)
     stay clear of the relay's.
 - `kuzyo.local` works on the LAN through avahi.
-- **AdGuard Home** is the DNS server with ad blocking, on port 53 of
-  `192.168.1.243` (Wi-Fi), `192.168.1.223` (cable) and the tailnet address.
-  The router hands out `192.168.1.243` as DNS over DHCP. The UI is
-  `adguard.home.freethinkel.dev`, user `admin`, password
-  `ADGUARD_PASSWORD` in `.env`; the UI is the source of truth for its
-  settings, `site.yml` only seeds the first config.
 
 Secrets live in `.env` next to this file, outside git; `.env.sample` lists
 them and says how to make each one. `site.yml` reads `.env` directly, nothing
