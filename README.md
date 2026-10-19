@@ -67,7 +67,8 @@ Everything goes through the `edge` stack on the host (`edge/`):
     the hidden `scvrtsrv.cmd`; forwards made in the Plume app and NAT-PMP
     mappings never reach the WAN), the host
     DNATs them to `pets` (`10.45.1.49`, fixed), and LiveKit finds the public
-    address over STUN. The `collie-relay` image is built from the Collie
+    address over STUN at start (`kuzyo-livekit-ip` restarts it within a
+    minute when the provider hands out another address). The `collie-relay` image is built from the Collie
     repo on the host's Docker, then loaded into `pets`:
     `DOCKER_HOST=ssh://kuzyo docker build --network host -f relay/deploy/Dockerfile -t collie-relay:latest desktop`,
     `ssh kuzyo 'docker save collie-relay:latest | incus exec pets -- docker load'`,

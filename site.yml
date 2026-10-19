@@ -472,6 +472,21 @@
         mode: "0600"
       no_log: true
 
+    # LiveKit asks STUN for the public address once, at start. When the
+    # provider hands out another one, callers away from home get the old
+    # address and their media never connects; a restart asks STUN again.
+    - name: LiveKit address check
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/kuzyo-livekit-ip
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          ip=$(curl -fsS4 -m 10 https://api.ipify.org) || exit 0
+          case "$ip" in ""|*[!0-9.]*) exit 0 ;; esac
+          incus exec pets -- docker logs collie-livekit 2>&1 | grep -o '"nodeIP": "[^"]*"' | tail -1 | grep -qF "\"$ip\"" && exit 0
+          echo "the public address is $ip now: restarting collie-livekit"
+          exec incus exec pets -- docker restart collie-livekit
+
     # The App Store reviewers' Collie demo runs in pets as the user
     # collie-demo (README); collie-server unpacks its voice models with tar -j.
     - name: bzip2 for collie-server's models
@@ -905,7 +920,7 @@
     # reads every block of /srv, so btrfs finds rot before a restore does.
     # The battery check is the UPS part: a power cut longer than the battery
     # ends in a clean poweroff at 10%, and the BIOS powers on with AC back.
-    - name: Systemd units for backup, alerts, scrub and battery
+    - name: Systemd units for backup, alerts, scrub, battery and LiveKit's address
       ansible.builtin.copy:
         dest: "/etc/systemd/system/{{ item.key }}"
         content: "{{ item.value }}"
@@ -969,6 +984,21 @@
 
             [Install]
             WantedBy=timers.target
+          kuzyo-livekit-ip.service: |
+            [Unit]
+            Description=Restart Collie's LiveKit when the public address changes
+            OnFailure=kuzyo-alert@%n.service
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/sbin/kuzyo-livekit-ip
+          kuzyo-livekit-ip.timer: |
+            [Timer]
+            OnBootSec=3min
+            OnUnitActiveSec=1min
+
+            [Install]
+            WantedBy=timers.target
 
     - name: Start the timers
       ansible.builtin.systemd_service:
@@ -976,7 +1006,7 @@
         enabled: true
         state: started
         daemon_reload: true
-      loop: [kuzyo-backup.timer, kuzyo-scrub.timer, kuzyo-battery.timer]
+      loop: [kuzyo-backup.timer, kuzyo-scrub.timer, kuzyo-battery.timer, kuzyo-livekit-ip.timer]
 
   handlers:
     # A restart, not caddy reload: copy replaces the file, and a single-file
