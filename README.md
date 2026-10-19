@@ -95,6 +95,13 @@ Everything goes through the `edge` stack on the host (`edge/`):
     (`incus exec pets -- su - collie-demo`). Its ports (7980–7982, 7990)
     stay clear of the relay's.
 - `kuzyo.local` works on the LAN through avahi.
+- **Panel** at `panel.home.freethinkel.dev` (`panel/`, Go and WebTUI) lists the
+  containers of the host, `apps` and `pets` with CPU, memory, ten minutes
+  of CPU history and logs, and starts, stops and restarts them. Any user
+  name, password `PANEL_PASSWORD` in `.env`. It runs on the host's Docker
+  and reaches the guests' Docker through Incus proxy devices
+  (`/srv/panel/sockets`). Stopping `caddy` takes the panel down with it;
+  `docker start caddy` on the host brings it back.
 
 Secrets live in `.env` next to this file, outside git; `.env.sample` lists
 them and says how to make each one. `site.yml` reads `.env` directly, nothing

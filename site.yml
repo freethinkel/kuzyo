@@ -17,9 +17,11 @@
     eac_email: "{{ lookup('ansible.builtin.ini', 'EAC_EMAIL', file='.env', type='properties') }}"
     eac_password: "{{ lookup('ansible.builtin.ini', 'EAC_PASSWORD', file='.env', type='properties') }}"
     ha_token: "{{ lookup('ansible.builtin.ini', 'HA_TOKEN', file='.env', type='properties') }}"
+    github_token: "{{ lookup('ansible.builtin.ini', 'GITHUB_TOKEN', file='.env', type='properties') }}"
     restic_password: "{{ lookup('ansible.builtin.ini', 'RESTIC_PASSWORD', file='.env', type='properties') }}"
     r2_access_key_id: "{{ lookup('ansible.builtin.ini', 'R2_ACCESS_KEY_ID', file='.env', type='properties') }}"
     r2_secret_access_key: "{{ lookup('ansible.builtin.ini', 'R2_SECRET_ACCESS_KEY', file='.env', type='properties') }}"
+    panel_password: "{{ lookup('ansible.builtin.ini', 'PANEL_PASSWORD', file='.env', type='properties') }}"
     collie_relay_livekit_secret: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_LIVEKIT_SECRET', file='.env', type='properties') }}"
     collie_relay_apns_key_id: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_APNS_KEY_ID', file='.env', type='properties') }}"
     collie_relay_apns_team_id: "{{ lookup('ansible.builtin.ini', 'COLLIE_RELAY_APNS_TEAM_ID', file='.env', type='properties') }}"
@@ -777,6 +779,7 @@
           CF_API_TOKEN={{ cloudflare_api_token }}
           CF_ACCOUNT_ID={{ cloudflare_account_id }}
           CF_TUNNEL_ID={{ (lookup('file', 'edge/cloudflared.yml') | from_yaml).tunnel }}
+          GITHUB_TOKEN={{ github_token }}
         mode: "0600"
 
     # Postgres rewrites pages in place; btrfs copy-on-write only fragments it.
@@ -824,6 +827,57 @@
       loop: "{{ pets }}"
       register: pets_up
       changed_when: "'Started' in pets_up.stderr or 'Recreated' in pets_up.stderr"
+
+    # The Docker panel (panel/) runs on the host to reach every Docker: the
+    # host's socket, and those of apps and pets, which proxy devices bring
+    # out into /srv/panel/sockets. A Docker socket is root, hence 0700.
+    - name: Panel directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop: [/srv/panel, /srv/panel/sockets]
+
+    - name: Docker sockets of apps and pets for the panel
+      ansible.builtin.command: >-
+        incus config device add {{ item }} docker proxy
+        listen=unix:/srv/panel/sockets/{{ item }}.sock connect=unix:/var/run/docker.sock mode=0600
+      loop: [apps, pets]
+      register: socket_device
+      changed_when: socket_device.rc == 0
+      failed_when: socket_device.rc != 0 and 'already exists' not in socket_device.stderr
+
+    # Glance in apps lists the pets containers on its dev page through that
+    # socket, passed on into apps. Incus will not create the directory.
+    - name: Docker socket of pets for Glance
+      ansible.builtin.shell: >-
+        incus exec apps -- mkdir -p /srv/sockets &&
+        incus config device add apps pets-docker proxy bind=container
+        listen=unix:/srv/sockets/pets.sock connect=unix:/srv/panel/sockets/pets.sock mode=0600
+      register: glance_socket
+      changed_when: glance_socket.rc == 0
+      failed_when: glance_socket.rc != 0 and 'already exists' not in glance_socket.stderr
+
+    - name: Panel files
+      ansible.builtin.copy:
+        src: "panel/{{ item }}"
+        dest: "/srv/panel/{{ item }}"
+        mode: "0644"
+      loop: [Dockerfile, compose.yml, go.mod, main.go, page.html]
+
+    - name: Panel password
+      ansible.builtin.copy:
+        dest: /srv/panel/.env
+        content: |
+          PANEL_PASSWORD={{ panel_password }}
+        mode: "0600"
+
+    - name: Start the panel
+      ansible.builtin.command: docker compose up -d --build
+      args:
+        chdir: /srv/panel
+      register: panel_up
+      changed_when: "'Started' in panel_up.stderr or 'Recreated' in panel_up.stderr"
 
     # Pushes to the phone through Home Assistant's app, for whatever breaks
     # while nobody looks: a failed timer job, a disk smartd does not like.

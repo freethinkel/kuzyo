@@ -1,0 +1,109 @@
+{{define "head"}}<!doctype html>
+<html lang="en" data-webtui-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@webtui/css@0.1.10/dist/full.css">
+<style>
+  :root {
+    --font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    --font-size: 14px;
+  }
+  [data-webtui-theme=dark] {
+    --background0: #0b0d0b;
+    --background1: #161a16;
+    --background2: #262c26;
+    --foreground0: #d6dcd6;
+    --foreground1: #9aa39a;
+    --foreground2: #5f685f;
+    --box-border-color: var(--background2);
+  }
+  body { max-width: 120ch; margin: 0 auto; padding: 1lh 2ch; }
+  a { color: inherit; }
+  header { display: flex; flex-wrap: wrap; gap: 0 3ch; margin-bottom: 1lh; }
+  header b { color: #7ee787; }
+  .dim { color: var(--foreground2); }
+  .up { color: #7ee787; }
+  .err { color: #ff7b72; }
+  section { margin-bottom: 1lh; overflow-x: auto; }
+  table { width: 100%; }
+  td, th { white-space: nowrap; vertical-align: top; }
+  .num { text-align: right; }
+  form { display: inline; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+</style>
+{{end}}
+
+{{define "index"}}{{template "head"}}
+<meta http-equiv="refresh" content="15">
+<title>kuzyo</title>
+</head>
+<body>
+<header>
+  <b>kuzyo</b>
+  <span>load <span class="dim">{{.Load}}</span></span>
+  <span>mem <span class="dim">{{size .MemUsed}} / {{size .MemTotal}}</span></span>
+</header>
+{{range .Hosts}}{{$host := .Name}}
+<section box-="square" shear-="top">
+  <div><span is-="badge" variant-="background0">{{.Name}} · cpu {{printf "%.1f" .CPU}}% · mem {{size .Mem}}</span></div>
+  {{if .Err}}<p class="err">{{.Err}}</p>{{end}}
+  <table divide-="horizontal">
+    <thead><tr><th>project</th><th>container</th><th>state</th><th class="num">cpu</th><th>10 min</th><th class="num">mem</th><th></th></tr></thead>
+    <tbody>
+    {{range .Containers}}
+    <tr>
+      <td class="dim">{{or .Project "-"}}</td>
+      <td title="{{.Image}}">{{.Name}}</td>
+      <td class="{{if eq .State "running"}}up{{else}}dim{{end}}" title="{{.Status}}">{{.State}}</td>
+      {{if eq .State "running"}}
+      <td class="num">{{printf "%.1f" .CPU}}%</td>
+      <td class="dim">{{spark .Hist}}</td>
+      <td class="num">{{size .Mem}}</td>
+      {{else}}<td></td><td></td><td></td>{{end}}
+      <td>
+        <form method="post" action="/action">
+          <input type="hidden" name="host" value="{{$host}}">
+          <input type="hidden" name="id" value="{{.ID}}">
+          {{if eq .State "running"}}
+          <button size-="small" variant-="background2" name="op" value="restart">restart</button>
+          <button size-="small" variant-="background2" name="op" value="stop" onclick="return confirm('stop {{.Name}} on {{$host}}?')">stop</button>
+          {{else}}
+          <button size-="small" variant-="background2" name="op" value="start">start</button>
+          {{end}}
+        </form>
+        <a href="/logs?host={{$host}}&id={{.ID}}&name={{.Name}}">logs</a>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
+</body>
+</html>
+{{end}}
+
+{{define "logs"}}{{template "head"}}
+<title>{{.Name}} · kuzyo</title>
+</head>
+<body>
+<header><a href="/"><b>kuzyo</b></a><span>{{.Host}} / {{.Name}}</span><span class="dim" id="state">following</span></header>
+<pre id="log"></pre>
+<script>
+  const log = document.getElementById('log')
+  const es = new EventSource('/logs/stream?host={{.Host}}&id={{.ID}}')
+  es.onmessage = (e) => {
+    const atBottom = innerHeight + scrollY >= document.body.scrollHeight - 50
+    log.append(e.data + '\n')
+    if (atBottom) scrollTo(0, document.body.scrollHeight)
+  }
+  // The stream ends when the container stops; reconnecting would replay the tail.
+  es.onerror = () => {
+    es.close()
+    document.getElementById('state').textContent = 'ended'
+  }
+</script>
+</body>
+</html>
+{{end}}

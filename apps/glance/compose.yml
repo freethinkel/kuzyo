@@ -13,6 +13,9 @@ services:
       - ./config:/app/config
       # Container list of this apps container; HA and edge run on the host.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # The pets Docker, for the dev page. A directory, since Incus makes a
+      # new socket file whenever its proxy device restarts.
+      - /srv/sockets:/sockets:ro
       - /files:/files:ro
     ports:
       - 8080:8080

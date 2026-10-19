@@ -1,0 +1,18 @@
+# The Docker panel at panel.home.freethinkel.dev (edge/Caddyfile). Runs on the
+# host: its own Docker socket plus the ones of apps and pets, which Incus
+# proxy devices put in /srv/panel/sockets (site.yml). A whole directory, since
+# Incus makes a new socket file whenever the guest restarts.
+services:
+  panel:
+    # Host Docker has no bridge network (see site.yml), so builds use the host's.
+    build:
+      context: .
+      network: host
+    container_name: panel
+    network_mode: host
+    env_file: .env
+    command: [-addr, "127.0.0.1:8090", host=/var/run/docker.sock, apps=/sockets/apps.sock, pets=/sockets/pets.sock]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./sockets:/sockets
+    restart: unless-stopped

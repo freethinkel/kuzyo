@@ -43,6 +43,11 @@ pages:
               - title: Immich, public
                 url: https://photos.freethinkel.dev
                 icon: si:cloudflare
+              # Answers 401 until you log in, so 401 means it is up.
+              - title: Docker panel
+                url: https://panel.home.freethinkel.dev
+                icon: si:docker
+                alt-status-codes: [401]
 
           # Air conditioners and electricity from HA. The price matches eac.price
           # in homeassistant/config/configuration.yaml.
@@ -153,3 +158,47 @@ pages:
                     url: https://login.tailscale.com/admin/machines
                   - title: EAC meter readings
                     url: https://meterreading-dso.eac.com.cy
+
+  # My projects and what they are built on. GITHUB_TOKEN reads the private
+  # piashyos repos and lifts GitHub's limit of 60 requests an hour.
+  - name: dev
+    columns:
+      - size: full
+        widgets:
+          - type: group
+            widgets:
+              - { type: repository, title: collie, repository: piashyos/collie, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: mochi, repository: piashyos/mochi, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: phocus, repository: piashyos/phocus, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: fmc, repository: freethinkel/fmc, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: shepherd, repository: freethinkel/shepherd, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: zui, repository: freethinkel/zui, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: kuzyo, repository: freethinkel/kuzyo, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+
+          - type: docker-containers
+            title: Containers in pets
+            sock-path: /sockets/pets.sock
+
+      - size: small
+        widgets:
+          # Flutter stopped publishing GitHub releases, Ghostty only has tip.
+          - type: releases
+            show-source-icon: true
+            token: ${GITHUB_TOKEN}
+            repositories:
+              - piashyos/collie-releases
+              - anthropics/claude-code
+              - tauri-apps/tauri
+              - livekit/livekit
+              - pocketbase/pocketbase
+              - zed-industries/zed
+
+          - type: bookmarks
+            groups:
+              - links:
+                  - title: App Store Connect
+                    url: https://appstoreconnect.apple.com
+                  - title: Aptabase
+                    url: https://eu.aptabase.com
+                  - title: GitHub notifications
+                    url: https://github.com/notifications
