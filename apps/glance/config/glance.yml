@@ -167,13 +167,13 @@ pages:
         widgets:
           - type: group
             widgets:
-              - { type: repository, title: collie, repository: piashyos/collie, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: mochi, repository: piashyos/mochi, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: phocus, repository: piashyos/phocus, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: fmc, repository: freethinkel/fmc, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: shepherd, repository: freethinkel/shepherd, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: zui, repository: freethinkel/zui, token: "${GITHUB_TOKEN}", commits-limit: 5 }
-              - { type: repository, title: kuzyo, repository: freethinkel/kuzyo, token: "${GITHUB_TOKEN}", commits-limit: 5 }
+              - { type: repository, title: collie, repository: piashyos/collie, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: mochi, repository: piashyos/mochi, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: phocus, repository: piashyos/phocus, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: fmc, repository: freethinkel/fmc, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: shepherd, repository: freethinkel/shepherd, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: zui, repository: freethinkel/zui, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
+              - { type: repository, title: kuzyo, repository: freethinkel/kuzyo, token: "${GITHUB_TOKEN}", commits-limit: 5, issues-limit: -1 }
 
           - type: docker-containers
             title: Containers in pets
