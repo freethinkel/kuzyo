@@ -1,0 +1,6 @@
+# The name comes from cloudflared (edge/cloudflared.yml) over plain HTTP on loopback; TLS ends at Cloudflare.
+http://shepherd.freethinkel.dev:8103 {
+	bind 127.0.0.1
+	root * /srv/site
+	file_server
+}

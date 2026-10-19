@@ -74,6 +74,8 @@ Everything goes through the `edge` stack on the host (`edge/`):
     `ssh kuzyo 'docker save collie-relay:latest | incus exec pets -- docker load'`,
     then `up -d` as above. Pushes need the APNs key in
     `/srv/pets/collie/secrets/apns.p8` and its ids in `.env`.
+  - `shepherd.freethinkel.dev` (`8103`) is Caddy with Shepherd's landing page in
+    `site/` (the Shepherd repo's `make deploy-site`).
   - `mochi.freethinkel.dev` (`8104`) is mochi's push relay, a Go binary in a
     distroless container: herdr hosts post agent lists, it sends APNs pushes.
     It moved from a Cloudflare Worker in October 2026. The mochi repo builds

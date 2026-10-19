@@ -1,0 +1,13 @@
+# shepherd.freethinkel.dev, the landing page in site/ (the Shepherd repo's make deploy-site). Caddy takes the name
+# from the tunnel on 127.0.0.1:8103. The empty .env only tells site.yml the pet is ready to start.
+name: shepherd
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: shepherd-caddy
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
+    restart: unless-stopped
