@@ -351,6 +351,14 @@
       changed_when: false
       tags: playground
 
+    # The boxes people build in can't starve Home Assistant and the apps:
+    # half the threads and a quarter of the RAM each, applied live.
+    - name: CPU and memory limits for dev and fishruff-playground
+      ansible.builtin.command: "incus config set {{ item }} limits.cpu=4 limits.memory=8GiB"
+      loop: [dev, fishruff-playground]
+      changed_when: false
+      tags: playground
+
     # Compose stacks from apps/<name>/ land in /srv/stacks/<name> on the host
     # and show up in the apps container as /stacks/<name>.
     - name: Stacks directory
