@@ -82,16 +82,18 @@
 
     # Subnet router for the home LAN, so *.home.freethinkel.dev and
     # smb://kenos.home.freethinkel.dev work away from home over Tailscale and
-    # directly at home. The route needs a one-off approval in the admin
-    # console: Machines → kuzyo → Edit route settings.
-    - name: IP forwarding for the subnet route
+    # directly at home. Also an exit node: away from home, all traffic can go
+    # out through the home connection. Both need a one-off approval in the
+    # admin console: Machines → kuzyo → Edit route settings.
+    - name: IP forwarding for the subnet route and the exit node
       ansible.posix.sysctl:
-        name: net.ipv4.ip_forward
+        name: "{{ item }}"
         value: "1"
         sysctl_file: /etc/sysctl.d/99-tailscale.conf
+      loop: [net.ipv4.ip_forward, net.ipv6.conf.all.forwarding]
 
-    - name: Advertise the home LAN
-      ansible.builtin.command: tailscale set --advertise-routes=192.168.1.0/24
+    - name: Advertise the home LAN and the exit node
+      ansible.builtin.command: tailscale set --advertise-routes=192.168.1.0/24 --advertise-exit-node
       changed_when: false
 
     - name: Drop-in directories
@@ -104,7 +106,9 @@
     # networkd drops a link's routes on carrier loss, so pulling the cable falls
     # back to Wi-Fi by itself. ClientIdentifier=mac keeps the router's
     # MAC-based leases. The Wi-Fi password lives in
-    # /etc/wpa_supplicant/wpa_supplicant-wlp0s20f3.conf, set by hand.
+    # /etc/wpa_supplicant/wpa_supplicant-wlp0s20f3.conf, set by hand, along
+    # with the iPhone hotspot as a lower-priority fallback for when the
+    # router is down.
     - name: Network on cable, Wi-Fi as fallback
       ansible.builtin.copy:
         dest: "/etc/systemd/network/{{ item.file }}"
@@ -558,6 +562,16 @@
       ansible.builtin.command: incus exec fishruff-playground -- sh -c 'curl -fsSL https://tailscale.com/install.sh | sh'
       args:
         creates: /var/lib/incus/storage-pools/default/containers/fishruff-playground/rootfs/usr/bin/tailscale
+      tags: playground
+
+    # And an exit node for that tailnet. fishruff approves it once in their
+    # admin console: Machines → fishruff-playground → Edit route settings.
+    - name: Exit node in fishruff-playground
+      ansible.builtin.command: >-
+        incus exec fishruff-playground -- sh -c
+        'printf "net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n" > /etc/sysctl.d/99-tailscale.conf &&
+        sysctl -q -p /etc/sysctl.d/99-tailscale.conf && tailscale set --advertise-exit-node'
+      changed_when: false
       tags: playground
 
     # File share on the USB SSD (exFAT, label files, so a Mac can read it
