@@ -76,10 +76,13 @@ Everything goes through the `edge` stack on the host (`edge/`):
     `/srv/pets/collie/secrets/apns.p8` and its ids in `.env`.
   - `shepherd.freethinkel.dev` (`8103`) is Caddy with Shepherd's landing page in
     `site/` (the Shepherd repo's `make deploy-site`).
-  - `mochi.freethinkel.dev` (`8104`) is mochi's push relay, a Go binary in a
-    distroless container: herdr hosts post agent lists, it sends APNs pushes.
-    It moved from a Cloudflare Worker in October 2026. The mochi repo builds
-    the binary and copies it to `/srv/pets/mochi-relay/mochi-relay`
+  - `mochi.freethinkel.dev` (`8104`) is Caddy with mochi's landing page in
+    `site/` (the mochi repo's `make deploy-site`) and mochi's push relay
+    behind it: `POST /push` and `/token` go to the relay on `127.0.0.1:8105`,
+    which stays inside `pets`. The relay is a Go binary in a distroless
+    container: herdr hosts post agent lists, it sends APNs pushes. It moved
+    from a Cloudflare Worker in October 2026. The mochi repo builds the binary
+    and copies it to `/srv/pets/mochi-relay/mochi-relay`
     (`server/relay/README.md` there). `secrets/apns.p8` (key `JT9M8A4P4P`)
     and `state/devices.json` (the app's tokens) exist only there; the WAF
     rate-limiting rule "mochi relay" on the zone still guards the name.

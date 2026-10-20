@@ -1,0 +1,16 @@
+# The name comes from cloudflared (edge/cloudflared.yml) over plain HTTP on loopback; TLS ends at Cloudflare.
+# The relay's two paths go to it on 8105; everything else is the landing page.
+http://mochi.freethinkel.dev:8104 {
+	bind 127.0.0.1
+	@relay {
+		method POST
+		path /push /token
+	}
+	handle @relay {
+		reverse_proxy 127.0.0.1:8105
+	}
+	handle {
+		root * /srv/site
+		file_server
+	}
+}
