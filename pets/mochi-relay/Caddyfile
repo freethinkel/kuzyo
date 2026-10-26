@@ -1,5 +1,6 @@
 # The name comes from cloudflared (edge/cloudflared.yml) over plain HTTP on loopback; TLS ends at Cloudflare.
-# The relay's two paths go to it on 8105; everything else is the landing page.
+# The relay's two paths go to it on 8105; everything else redirects to the phone app's page,
+# now beside Shepherd's (pets/shepherd, phone/).
 http://mochi.freethinkel.dev:8104 {
 	bind 127.0.0.1
 	@relay {
@@ -10,7 +11,6 @@ http://mochi.freethinkel.dev:8104 {
 		reverse_proxy 127.0.0.1:8105
 	}
 	handle {
-		root * /srv/site
-		file_server
+		redir https://shepherd.freethinkel.dev/phone{uri} 301
 	}
 }

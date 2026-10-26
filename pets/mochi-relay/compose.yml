@@ -1,4 +1,4 @@
-# mochi.freethinkel.dev: the landing page in site/ (the mochi repo's make deploy-site) and mochi's push relay
+# mochi.freethinkel.dev: mochi's push relay, and a redirect to shepherd.freethinkel.dev/phone/ for the rest
 # (herdr hosts post agent lists, it sends APNs pushes). Caddy takes the name from the tunnel on 127.0.0.1:8104 and
 # passes POST /push and /token to the relay on 127.0.0.1:8105, which stays inside pets. The binary is built and
 # copied by the mochi repo (server/relay/README.md); secrets/apns.p8 is the APNs key, state/devices.json the
@@ -12,7 +12,6 @@ services:
     network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/srv/site:ro
     restart: unless-stopped
 
   relay:
