@@ -14,3 +14,5 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    # On SIGTERM the bot finishes answers in progress: up to a 50 s long poll plus a 3 min Claude call.
+    stop_grace_period: 5m
