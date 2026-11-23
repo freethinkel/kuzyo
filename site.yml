@@ -39,6 +39,7 @@
       - { name: collie, port: 8102 }
       - { name: shepherd, port: 8103 }
       - { name: mochi-relay, port: 8104 }
+      - { name: vardoger, port: 8108 }
       - { name: tg-digest-bot }
 
   tasks:

@@ -1,0 +1,23 @@
+# vardoger.freethinkel.dev: vardoger-server (Google sign-in, the account's devices and the device-room relay,
+# WebSockets on /device/{id}/ws), through the tunnel on 127.0.0.1:8108. The vardoger repo's
+# apps/vardoger-server/deploy/deploy.sh syncs its source into src/ and builds the image here. .env
+# (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) and data/ with server.db (uid 1000) live only here.
+name: vardoger
+
+services:
+  server:
+    build:
+      context: src
+      dockerfile: apps/vardoger-server/deploy/Dockerfile
+    image: vardoger-server:latest
+    container_name: vardoger-server
+    network_mode: host
+    env_file: .env
+    environment:
+      VARDOGER_SERVER_URL: https://vardoger.freethinkel.dev
+      VARDOGER_SERVER_ADDR: 127.0.0.1:8108
+      VARDOGER_SERVER_DB: /data/server.db
+      VARDOGER_ALLOWED_EMAILS: freethinkel@gmail.com
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

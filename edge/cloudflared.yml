@@ -18,4 +18,6 @@ ingress:
     service: http://localhost:8103
   - hostname: mochi.freethinkel.dev
     service: http://localhost:8104
+  - hostname: vardoger.freethinkel.dev
+    service: http://localhost:8108
   - service: http_status:404

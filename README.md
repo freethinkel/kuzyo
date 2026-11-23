@@ -86,6 +86,14 @@ Everything goes through the `edge` stack on the host (`edge/`):
     (`server/relay/README.md` there). `secrets/apns.p8` (key `JT9M8A4P4P`)
     and `state/devices.json` (the app's tokens) exist only there; the WAF
     rate-limiting rule "mochi relay" on the zone still guards the name.
+  - `vardoger.freethinkel.dev` (`8108`) is vardoger-server: Google sign-in,
+    the account's devices and the device-room relay between them
+    (WebSockets on `/device/{id}/ws`). The vardoger repo's
+    `apps/vardoger-server/deploy/deploy.sh` syncs its source into `src/` and
+    builds the image here, in `pets`. `.env` (the OAuth client of the Google
+    Cloud project `vardoger-515618`, consent screen in Testing with
+    `freethinkel@gmail.com` as the test user) and `data/server.db` (uid 1000)
+    exist only there.
   - `tg-digest-bot` is @chatovyzhimalka_bot, a Telegram bot that sums up and
     answers in group chats through `claude -p`. It only polls Telegram, so it
     has no port and no tunnel. Its repo deploys with `make deploy`; `.env`
